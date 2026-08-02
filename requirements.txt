@@ -1,0 +1,20 @@
+# --- API ---
+fastapi>=0.115
+uvicorn[standard]>=0.32
+
+# --- ORM + validación (SQLModel = SQLAlchemy + Pydantic) ---
+sqlmodel>=0.0.22
+
+# --- Migraciones ---
+alembic>=1.14
+
+# --- Driver de Postgres (psycopg 3) ---
+psycopg[binary]>=3.2
+
+# --- Configuración por variables de entorno ---
+pydantic-settings>=2.6
+python-dotenv>=1.0
+
+# --- Requerido si usas formularios (form-data) o EmailStr en tus modelos ---
+python-multipart>=0.0.12
+email-validator>=2.2
