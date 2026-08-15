@@ -73,7 +73,26 @@ persistencia sin reescribir la lógica de negocio.
   muchos-a-muchos vía `LoanBicycleLink`) — `requester_name`, `id_document`, `phone`,
   `loan_datetime`, `return_datetime` (nulo hasta que se devuelve), `status`
   (`in_progress`/`finished`).
-- **User**: credenciales del panel de administración (pendiente de exponer vía API).
+- **User**: credenciales del panel de administración — `username` + `hashed_password`
+  (bcrypt). No tiene endpoint de registro público; se crea con
+  `python -m scripts.create_admin <username>`.
+
+## Autenticación
+
+`POST /auth/login` recibe `username`/`password`, valida contra el hash guardado
+(`bcrypt`) y devuelve un JWT (`pyjwt`, `HS256`, expira en `JWT_EXPIRE_MINUTES` — 24h por
+defecto). Requiere `JWT_SECRET_KEY` en `.env` (generar con
+`python -c "import secrets; print(secrets.token_hex(32))"`, nunca commitear).
+
+No hay `POST /users/` público a propósito — solo un admin ya autenticado (o quien tenga
+acceso al servidor) puede crear cuentas nuevas, vía el script de seed:
+
+```bash
+python -m scripts.create_admin nombre_de_usuario
+```
+
+Pendiente: el JWT todavía no protege ningún endpoint de escritura de `bicycles`/`loans`
+— eso se conecta en un paso posterior con una dependencia `get_current_user`.
 
 ## Configuración local
 

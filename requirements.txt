@@ -18,3 +18,7 @@ python-dotenv>=1.0
 # --- Requerido si usas formularios (form-data) o EmailStr en tus modelos ---
 python-multipart>=0.0.12
 email-validator>=2.2
+
+# --- Auth: hash de passwords y JWT ---
+bcrypt>=4.2
+pyjwt>=2.9
