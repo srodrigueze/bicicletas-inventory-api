@@ -73,26 +73,39 @@ persistencia sin reescribir la lógica de negocio.
   muchos-a-muchos vía `LoanBicycleLink`) — `requester_name`, `id_document`, `phone`,
   `loan_datetime`, `return_datetime` (nulo hasta que se devuelve), `status`
   (`in_progress`/`finished`).
-- **User**: credenciales del panel de administración — `username` + `hashed_password`
-  (bcrypt). No tiene endpoint de registro público; se crea con
-  `python -m scripts.create_admin <username>`.
+- **User**: usuarios del sistema — `full_name`, `document` (número de documento de
+  identidad, único, usuario de acceso), `hashed_password` (bcrypt), `role`
+  (`administrador`/`operador`), `status` (`activo`/`inactivo`), `is_superadmin`
+  (booleano, solo aplicable a `administrador`, único en el sistema, inmutable). Ver
+  reglas completas en la bóveda de documentación,
+  `Requisitos/REQ-001 - Autenticacion y gestion de usuarios.md`.
 
 ## Autenticación
 
-`POST /auth/login` recibe `username`/`password`, valida contra el hash guardado
-(`bcrypt`) y devuelve un JWT (`pyjwt`, `HS256`, expira en `JWT_EXPIRE_MINUTES` — 24h por
-defecto). Requiere `JWT_SECRET_KEY` en `.env` (generar con
+`POST /auth/login` recibe `document`/`password`. La contraseña inicial de todo usuario
+es derivada (últimos 4 dígitos del documento); un usuario puede cambiarla después vía
+`POST /users/me/change-password`. Login valida contra el hash guardado (`bcrypt`),
+rechaza usuarios `inactivo` con el mismo mensaje genérico que credenciales inválidas, y
+devuelve un JWT (`pyjwt`, `HS256`, expira en `JWT_EXPIRE_MINUTES` — 6h por defecto,
+RNG-07). Requiere `JWT_SECRET_KEY` en `.env` (generar con
 `python -c "import secrets; print(secrets.token_hex(32))"`, nunca commitear).
 
-No hay `POST /users/` público a propósito — solo un admin ya autenticado (o quien tenga
-acceso al servidor) puede crear cuentas nuevas, vía el script de seed:
+No hay auto-registro a propósito (RNG-08). Solo existe un único punto de entrada sin
+autenticación previa: `scripts/create_admin.py`, que crea **exclusivamente** al
+superadministrador semilla (se niega a correr si ya existe uno):
 
 ```bash
-python -m scripts.create_admin nombre_de_usuario
+python -m scripts.create_admin "Nombre Completo" <documento>
 ```
 
-Pendiente: el JWT todavía no protege ningún endpoint de escritura de `bicycles`/`loans`
-— eso se conecta en un paso posterior con una dependencia `get_current_user`.
+Cualquier otro usuario (administrador u operador) se crea vía `POST /users/`, protegido
+por JWT y restringido a usuarios con rol `administrador` — ver
+`app/api/routers/users.py` y `app/api/deps.py` (`get_current_user`,
+`require_administrador`).
+
+Pendiente: el JWT todavía no protege los endpoints de escritura de `bicycles`/`loans`
+— hoy solo protege `users`. La dependencia `get_current_user` ya existe en
+`app/api/deps.py` y puede reutilizarse ahí en un paso posterior.
 
 ## Configuración local
 
@@ -130,7 +143,34 @@ alembic upgrade head
 
 Revisa siempre el archivo de migración generado en `migrations/versions/` antes de
 aplicarlo — el autogenerate de Alembic con SQLModel a veces omite el `import sqlmodel`
-que sus propios tipos de columna necesitan.
+que sus propios tipos de columna necesitan, y no siempre emite el `CREATE TYPE`/
+`DROP TYPE` de los enums nativos de Postgres (revísalo también).
+
+## Pruebas automatizadas
+
+La suite corre contra una rama **dedicada de Neon llamada `test`** — nunca contra
+`dev` ni producción. Antes de correrla, crea un archivo `.env.test` en la raíz (no se
+sube al repo) con las cadenas de conexión de esa rama:
+
+```
+DATABASE_URL=postgresql+psycopg://usuario:password@ep-xxxx-pooler.<region>.aws.neon.tech/dbname?sslmode=require
+DATABASE_URL_DIRECT=postgresql+psycopg://usuario:password@ep-xxxx.<region>.aws.neon.tech/dbname?sslmode=require
+JWT_SECRET_KEY=cualquier-valor-de-prueba
+```
+
+```bash
+pip install -r requirements.txt   # incluye pytest y httpx
+pytest
+```
+
+`tests/conftest.py` aplica `alembic upgrade head` sobre la rama `test` al inicio de
+la corrida y trunca todas las tablas después de cada test — cada test parte de una
+base de datos limpia, sin depender del orden de ejecución. Los tests hablan con la
+API real vía `fastapi.testclient.TestClient` (login real, JWT real), no con mocks.
+
+Cada requisito nuevo que se implemente (ver la bóveda de Obsidian del proyecto,
+carpeta `Desarrollo/`) debe agregar su propio archivo `tests/test_<módulo>.py`, para
+que la suite completa sirva como regresión antes de cada despliegue.
 
 ## Despliegue a GCP (Cloud Run)
 

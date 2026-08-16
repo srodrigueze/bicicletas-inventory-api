@@ -11,12 +11,13 @@ class SqlUserRepository(UserRepository):
     def get_by_id(self, user_id: int) -> User | None:
         return self.session.get(User, user_id)
 
-    def get_by_username(self, username: str) -> User | None:
-        statement = select(User).where(User.username == username)
+    def get_by_document(self, document: str) -> User | None:
+        statement = select(User).where(User.document == document)
         return self.session.exec(statement).first()
 
-    def list_all(self) -> list[User]:
-        return list(self.session.exec(select(User)).all())
+    def list_all(self, skip: int = 0, limit: int = 50) -> list[User]:
+        statement = select(User).order_by(User.id).offset(skip).limit(limit)
+        return list(self.session.exec(statement).all())
 
     def create(self, user: User) -> User:
         self.session.add(user)
