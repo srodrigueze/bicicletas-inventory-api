@@ -19,5 +19,7 @@ class Bicycle(SQLModel, table=True):
     code: str = Field(max_length=5, unique=True, index=True)
     condition: BicycleCondition = BicycleCondition.good
     size: BicycleSize = BicycleSize.medium
+    rueditas_asistencia: bool
+    tiene_pedales: bool
+    en_posesion_jac: bool = True
     observations: str | None = None
-    photo_url: str | None = None

@@ -94,7 +94,7 @@ For a resource named `<Name>` (e.g. `Station`, file-name-cased `<name>` = `stati
 - `app/main.py`: `from app.api.routers import <name>s` and
   `app.include_router(<name>s.router)`.
 
-## 5. Remind the user of the manual next step
+## 5. Remind the user of the manual next steps
 
 This skill does **not** run Alembic. After generating the files, tell the user to:
 
@@ -102,11 +102,18 @@ This skill does **not** run Alembic. After generating the files, tell the user t
 alembic revision --autogenerate -m "add <name> table"
 ```
 
-and to **check the generated file for a missing `import sqlmodel`** before running
-`alembic upgrade head` — Alembic's autogenerate does not add this import on its own
-when entities use SQLModel column types, and the migration will crash with a
-`NameError` if it's missing. This exact bug happened when `bicycle`/`loan`/`user`
-were first migrated (see `migrations/versions/77df9202930e_*.py`).
+and to **check the generated file for a missing `import sqlmodel`**, and for missing
+`CREATE TYPE`/`DROP TYPE` statements if the entity has enum columns, before running
+`alembic upgrade head` — Alembic's autogenerate does not always add these on its own.
+This exact bug happened when `bicycle`/`loan`/`user` were first migrated (see
+`migrations/versions/77df9202930e_*.py` and `73b20e845bca_*.py`).
+
+This skill also does **not** write tests — scaffolding covers the CRUD skeleton, not
+its test coverage. Remind the user that once the business rules for `<name>` are
+implemented (via the `desarrollador-tester` vault workflow, if the resource maps to a
+documented `REQ-xxx`), the corresponding `tests/test_<name>s.py` needs its own test
+per test case, following the fixtures already in `tests/conftest.py` (`client`,
+`make_user`, `token_for`) and the pattern in `tests/test_auth.py`.
 
 ## Conventions to always follow
 

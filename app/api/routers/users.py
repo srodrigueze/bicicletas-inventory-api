@@ -23,7 +23,6 @@ def list_users(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ):
-    # RNG-05 / HU-06: every list in every panel must be paginated.
     return service.list_users(skip=skip, limit=limit)
 
 
@@ -32,6 +31,7 @@ def get_user(user_id: int, admin: AdminUserDep, service: UserServiceDep):
     user = service.get_user(user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
     return user
 
 
@@ -49,8 +49,10 @@ def update_user(user_id: int, data: UserUpdate, admin: AdminUserDep, service: Us
         user = service.update_user(acting_user=admin, target_user_id=user_id, data=data)
     except ForbiddenActionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
     return user
 
 

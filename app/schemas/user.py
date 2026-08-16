@@ -4,8 +4,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.entities.user import UserRole, UserStatus
 
-# RN-REQ001-19: document is digits only, no maximum length, implicit minimum
-# of 4 digits (needed to derive the initial password from its last 4 digits).
 DOCUMENT_PATTERN = re.compile(r"^\d{4,}$")
 
 MASKED_DOCUMENT = "****"
@@ -53,7 +51,6 @@ class TokenResponse(BaseModel):
 
 class PasswordChangeRequest(BaseModel):
     current_password: str
-    # RN-REQ001-17: minimum length of 6 characters, no other complexity rules.
     new_password: str = Field(..., min_length=6)
 
 
