@@ -52,29 +52,21 @@ class BicycleService:
     def create_bicycle(self, data: BicycleCreate) -> BicycleRead:
         if self.bicycle_repository.get_by_code(data.code):
             raise ValueError(f"A bicycle with code '{data.code}' already exists")
-        
         bicycle = Bicycle(**data.model_dump(), en_posesion_jac=True)
         created = self.bicycle_repository.create(bicycle)
         return self._to_read(created)
 
     def update_bicycle(self, bicycle_id: int, data: BicycleUpdate) -> BicycleRead | None:
         bicycle = self.bicycle_repository.get_by_id(bicycle_id)
-
         if not bicycle:
             return None
-        
         updates = data.model_dump(exclude_unset=True)
-
         if "code" in updates and updates["code"] != bicycle.code:
             existing = self.bicycle_repository.get_by_code(updates["code"])
-
             if existing and existing.id != bicycle_id:
                 raise ValueError(f"A bicycle with code '{updates['code']}' already exists")
-
-            
         for field, value in updates.items():
             setattr(bicycle, field, value)
-
         updated = self.bicycle_repository.update(bicycle)
         return self._to_read(updated)
 

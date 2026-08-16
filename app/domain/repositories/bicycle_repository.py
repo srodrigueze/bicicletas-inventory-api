@@ -32,14 +32,10 @@ class BicycleRepository(ABC):
 
     @abstractmethod
     def delete(self, bicycle_id: int) -> Bicycle | None:
-        """Logical delete only (RNG-13/RN-REQ002-05): sets en_posesion_jac to
-        False and persists it. Never issues a physical DELETE. Returns the
-        updated bicycle, or None if it doesn't exist."""
+        """Marks the bicycle as not in possession; never removes the row."""
         ...
 
     @abstractmethod
     def restore(self, bicycle_id: int) -> Bicycle | None:
-        """Reverses a logical delete (RN-REQ002-06/HU-10): sets
-        en_posesion_jac back to True. Returns the updated bicycle, or None if
-        it doesn't exist."""
+        """Reverses a previous delete, marking the bicycle in possession again."""
         ...

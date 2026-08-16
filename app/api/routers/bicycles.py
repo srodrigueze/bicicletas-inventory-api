@@ -36,7 +36,6 @@ def get_bicycle(bicycle_id: int, service: BicycleServiceDep):
     bicycle = service.get_bicycle(bicycle_id)
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
-    
     return bicycle
 
 
@@ -56,7 +55,6 @@ def update_bicycle(bicycle_id: int, data: BicycleUpdate, service: BicycleService
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
-    
     return bicycle
 
 
@@ -65,7 +63,6 @@ def delete_bicycle(bicycle_id: int, service: BicycleServiceDep):
     bicycle = service.delete_bicycle(bicycle_id)
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
-    
     return bicycle
 
 
@@ -74,5 +71,4 @@ def restore_bicycle(bicycle_id: int, service: BicycleServiceDep):
     bicycle = service.restore_bicycle(bicycle_id)
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
-    
     return bicycle
