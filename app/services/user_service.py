@@ -1,7 +1,10 @@
 from app.core.security import create_access_token, derive_initial_password, hash_password, verify_password
+from app.domain.entities.audit_log import AuditAction
 from app.domain.entities.user import User, UserRole, UserStatus
+from app.domain.repositories.audit_repository import AuditRepository
 from app.domain.repositories.user_repository import UserRepository
 from app.schemas.user import MASKED_DOCUMENT, UserCreate, UserRead, UserUpdate
+from app.services.audit_recording import record_audit
 
 
 class ForbiddenActionError(Exception):
@@ -11,8 +14,14 @@ class ForbiddenActionError(Exception):
 
 
 class UserService:
-    def __init__(self, user_repository: UserRepository):
+    def __init__(self, user_repository: UserRepository, audit_repository: AuditRepository):
         self.user_repository = user_repository
+        self.audit_repository = audit_repository
+
+    def _audit_snapshot(self, user: User) -> dict:
+        data = user.model_dump(mode="json")
+        data.pop("hashed_password", None)
+        return data
 
     def _to_read(self, user: User) -> UserRead:
         document = MASKED_DOCUMENT if user.role == UserRole.ADMINISTRADOR else user.document
@@ -32,10 +41,10 @@ class UserService:
         user = self.user_repository.get_by_id(user_id)
         return self._to_read(user) if user else None
 
-    def create_user(self, data: UserCreate) -> UserRead:
+    def create_user(self, acting_user: User, data: UserCreate) -> UserRead:
         if self.user_repository.get_by_document(data.document):
             raise ValueError(f"A user with document '{data.document}' already exists")
-        
+
         initial_password = derive_initial_password(data.document)
         user = User(
             full_name=data.full_name,
@@ -47,6 +56,15 @@ class UserService:
         )
 
         created = self.user_repository.create(user)
+        record_audit(
+            self.audit_repository,
+            user=acting_user,
+            action=AuditAction.create,
+            entity_name="User",
+            entity_id=created.id,
+            previous_values=None,
+            new_values=self._audit_snapshot(created),
+        )
         return self._to_read(created)
 
     def _check_management_permission(self, acting_user: User, target: User) -> None:
@@ -61,14 +79,29 @@ class UserService:
         target = self.user_repository.get_by_id(target_user_id)
         if not target:
             return None
-        
+
         self._check_management_permission(acting_user, target)
         update_data = data.model_dump(exclude_unset=True)
+        previous_snapshot = self._audit_snapshot(target)
+        status_changed = "status" in update_data and update_data["status"] != target.status
 
         for field, value in update_data.items():
             setattr(target, field, value)
 
         updated = self.user_repository.update(target)
+
+        action = AuditAction.update
+        if status_changed:
+            action = AuditAction.activate if updated.status == UserStatus.ACTIVO else AuditAction.deactivate
+        record_audit(
+            self.audit_repository,
+            user=acting_user,
+            action=action,
+            entity_name="User",
+            entity_id=updated.id,
+            previous_values=previous_snapshot,
+            new_values=self._audit_snapshot(updated),
+        )
         return self._to_read(updated)
     
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.deps import BicycleServiceDep
+from app.api.deps import BicycleServiceDep, CurrentUserDep
 from app.domain.entities.bicycle import BicycleCondition, BicycleSize
 from app.schemas.bicycle import BicycleCreate, BicycleRead, BicycleUpdate
 
@@ -9,6 +9,7 @@ router = APIRouter(prefix="/bicycles", tags=["bicycles"])
 
 @router.get("/", response_model=list[BicycleRead])
 def list_bicycles(
+    current_user: CurrentUserDep,
     service: BicycleServiceDep,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
@@ -32,7 +33,7 @@ def list_bicycles(
 
 
 @router.get("/{bicycle_id}", response_model=BicycleRead)
-def get_bicycle(bicycle_id: int, service: BicycleServiceDep):
+def get_bicycle(bicycle_id: int, current_user: CurrentUserDep, service: BicycleServiceDep):
     bicycle = service.get_bicycle(bicycle_id)
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
@@ -40,17 +41,17 @@ def get_bicycle(bicycle_id: int, service: BicycleServiceDep):
 
 
 @router.post("/", response_model=BicycleRead, status_code=status.HTTP_201_CREATED)
-def create_bicycle(data: BicycleCreate, service: BicycleServiceDep):
+def create_bicycle(data: BicycleCreate, current_user: CurrentUserDep, service: BicycleServiceDep):
     try:
-        return service.create_bicycle(data)
+        return service.create_bicycle(current_user, data)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.patch("/{bicycle_id}", response_model=BicycleRead)
-def update_bicycle(bicycle_id: int, data: BicycleUpdate, service: BicycleServiceDep):
+def update_bicycle(bicycle_id: int, data: BicycleUpdate, current_user: CurrentUserDep, service: BicycleServiceDep):
     try:
-        bicycle = service.update_bicycle(bicycle_id, data)
+        bicycle = service.update_bicycle(current_user, bicycle_id, data)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if not bicycle:
@@ -59,16 +60,16 @@ def update_bicycle(bicycle_id: int, data: BicycleUpdate, service: BicycleService
 
 
 @router.delete("/{bicycle_id}", response_model=BicycleRead)
-def delete_bicycle(bicycle_id: int, service: BicycleServiceDep):
-    bicycle = service.delete_bicycle(bicycle_id)
+def delete_bicycle(bicycle_id: int, current_user: CurrentUserDep, service: BicycleServiceDep):
+    bicycle = service.delete_bicycle(current_user, bicycle_id)
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
     return bicycle
 
 
 @router.patch("/{bicycle_id}/restore", response_model=BicycleRead)
-def restore_bicycle(bicycle_id: int, service: BicycleServiceDep):
-    bicycle = service.restore_bicycle(bicycle_id)
+def restore_bicycle(bicycle_id: int, current_user: CurrentUserDep, service: BicycleServiceDep):
+    bicycle = service.restore_bicycle(current_user, bicycle_id)
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
     return bicycle

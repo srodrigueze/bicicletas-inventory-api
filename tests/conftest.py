@@ -31,7 +31,7 @@ os.environ.update({k: v for k, v in _test_env.items() if v is not None})
 # Import entity modules (not app.main yet) so SQLModel.metadata is fully
 # populated for the truncate-all-tables cleanup below, regardless of which
 # test file runs first.
-from app.domain.entities import bicycle, loan, user  # noqa: E402,F401
+from app.domain.entities import audit_log, bicycle, client, loan, user  # noqa: E402,F401
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -119,3 +119,14 @@ def token_for(client):
         return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
     return _token_for
+
+
+@pytest.fixture()
+def auth_headers(make_user, token_for):
+    """A ready-to-use Authorization header for an active operador, for tests
+    that only need *some* authenticated user and don't care which role."""
+    from app.domain.entities.user import UserRole
+
+    document = "9999999999"
+    make_user("Test Operator", document, UserRole.OPERADOR)
+    return token_for(document, document[-4:])

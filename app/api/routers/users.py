@@ -38,7 +38,7 @@ def get_user(user_id: int, admin: AdminUserDep, service: UserServiceDep):
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(data: UserCreate, admin: AdminUserDep, service: UserServiceDep):
     try:
-        return service.create_user(data)
+        return service.create_user(admin, data)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 

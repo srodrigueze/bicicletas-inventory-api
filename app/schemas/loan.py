@@ -2,29 +2,34 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.entities.loan import LoanStatus
+from app.domain.entities.loan import LoanDetailStatus
+from app.schemas.client import ClientData, ClientRead
 
 
 class LoanCreate(BaseModel):
     bicycle_ids: list[int] = Field(..., min_length=1)
-    requester_name: str = Field(..., max_length=50)
-    id_document: str = Field(..., max_length=20)
-    phone: str = Field(..., max_length=15)
-    loan_datetime: datetime
+    client: ClientData
 
 
-class LoanReturn(BaseModel):
-    return_datetime: datetime | None = None
+class LoanSwapBicycle(BaseModel):
+    detail_id: int
+    new_bicycle_id: int
+
+
+class LoanDetailRead(BaseModel):
+    id: int
+    bicycle_id: int
+    status: LoanDetailStatus
+    returned_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LoanRead(BaseModel):
     id: int
-    requester_name: str
-    id_document: str
-    phone: str
+    client: ClientRead
     loan_datetime: datetime
-    return_datetime: datetime | None
-    status: LoanStatus
-    bicycle_ids: list[int]
+    is_active: bool
+    details: list[LoanDetailRead]
 
     model_config = ConfigDict(from_attributes=True)

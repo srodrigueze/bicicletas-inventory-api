@@ -7,10 +7,14 @@ from sqlmodel import Session
 from app.core.database import get_session
 from app.core.security import decode_access_token
 from app.domain.entities.user import User, UserRole, UserStatus
+from app.infrastructure.repositories.audit_repository_sql import SqlAuditRepository
 from app.infrastructure.repositories.bicycle_repository_sql import SqlBicycleRepository
+from app.infrastructure.repositories.client_repository_sql import SqlClientRepository
 from app.infrastructure.repositories.loan_repository_sql import SqlLoanRepository
 from app.infrastructure.repositories.user_repository_sql import SqlUserRepository
+from app.services.audit_service import AuditService
 from app.services.bicycle_service import BicycleService
+from app.services.client_service import ClientService
 from app.services.loan_service import LoanService
 from app.services.user_service import UserService
 
@@ -25,36 +29,62 @@ def get_loan_repository(session: SessionDep) -> SqlLoanRepository:
     return SqlLoanRepository(session)
 
 
+def get_client_repository(session: SessionDep) -> SqlClientRepository:
+    return SqlClientRepository(session)
+
+
 def get_user_repository(session: SessionDep) -> SqlUserRepository:
     return SqlUserRepository(session)
 
 
+def get_audit_repository(session: SessionDep) -> SqlAuditRepository:
+    return SqlAuditRepository(session)
+
+
 BicycleRepositoryDep = Annotated[SqlBicycleRepository, Depends(get_bicycle_repository)]
 LoanRepositoryDep = Annotated[SqlLoanRepository, Depends(get_loan_repository)]
+ClientRepositoryDep = Annotated[SqlClientRepository, Depends(get_client_repository)]
 UserRepositoryDep = Annotated[SqlUserRepository, Depends(get_user_repository)]
+AuditRepositoryDep = Annotated[SqlAuditRepository, Depends(get_audit_repository)]
 
 
 def get_bicycle_service(
     bicycle_repository: BicycleRepositoryDep,
     loan_repository: LoanRepositoryDep,
+    audit_repository: AuditRepositoryDep,
 ) -> BicycleService:
-    return BicycleService(bicycle_repository, loan_repository)
+    return BicycleService(bicycle_repository, loan_repository, audit_repository)
 
 
 def get_loan_service(
     loan_repository: LoanRepositoryDep,
     bicycle_repository: BicycleRepositoryDep,
+    client_repository: ClientRepositoryDep,
+    audit_repository: AuditRepositoryDep,
 ) -> LoanService:
-    return LoanService(loan_repository, bicycle_repository)
+    return LoanService(loan_repository, bicycle_repository, client_repository, audit_repository)
 
 
-def get_user_service(user_repository: UserRepositoryDep) -> UserService:
-    return UserService(user_repository)
+def get_client_service(client_repository: ClientRepositoryDep) -> ClientService:
+    return ClientService(client_repository)
+
+
+def get_user_service(
+    user_repository: UserRepositoryDep,
+    audit_repository: AuditRepositoryDep,
+) -> UserService:
+    return UserService(user_repository, audit_repository)
+
+
+def get_audit_service(audit_repository: AuditRepositoryDep) -> AuditService:
+    return AuditService(audit_repository)
 
 
 BicycleServiceDep = Annotated[BicycleService, Depends(get_bicycle_service)]
 LoanServiceDep = Annotated[LoanService, Depends(get_loan_service)]
+ClientServiceDep = Annotated[ClientService, Depends(get_client_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
+AuditServiceDep = Annotated[AuditService, Depends(get_audit_service)]
 
 
 # --- Auth guards -------------------------------------------------------

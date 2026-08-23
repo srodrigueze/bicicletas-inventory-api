@@ -9,7 +9,7 @@ from alembic import context
 from app.core.config import settings
 
 # import entities so SQLModel registers the tables on its metadata
-from app.domain.entities import bicycle, loan, user  # noqa
+from app.domain.entities import audit_log, bicycle, client, loan, user  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

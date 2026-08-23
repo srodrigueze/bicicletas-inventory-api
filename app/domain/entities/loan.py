@@ -1,32 +1,25 @@
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
 
-from sqlmodel import Field, Relationship, SQLModel
-
-if TYPE_CHECKING:
-    from app.domain.entities.bicycle import Bicycle
+from sqlmodel import Field, SQLModel
 
 
-class LoanStatus(str, Enum):
-    in_progress = "in_progress"
-    finished = "finished"
-
-
-class LoanBicycleLink(SQLModel, table=True):
-    __tablename__ = "loan_bicycle_link"
-
-    loan_id: int | None = Field(default=None, foreign_key="loan.id", primary_key=True)
-    bicycle_id: int | None = Field(default=None, foreign_key="bicycle.id", primary_key=True)
+class LoanDetailStatus(str, Enum):
+    on_loan = "on_loan"
+    returned = "returned"
 
 
 class Loan(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    requester_name: str = Field(max_length=50)
-    id_document: str = Field(max_length=20)
-    phone: str = Field(max_length=15)
+    client_id: int = Field(foreign_key="client.id")
     loan_datetime: datetime
-    return_datetime: datetime | None = None
-    status: LoanStatus = LoanStatus.in_progress
 
-    bicycles: list["Bicycle"] = Relationship(link_model=LoanBicycleLink)
+
+class LoanDetail(SQLModel, table=True):
+    __tablename__ = "loan_detail"
+
+    id: int | None = Field(default=None, primary_key=True)
+    loan_id: int = Field(foreign_key="loan.id")
+    bicycle_id: int = Field(foreign_key="bicycle.id")
+    status: LoanDetailStatus = LoanDetailStatus.on_loan
+    returned_at: datetime | None = None
