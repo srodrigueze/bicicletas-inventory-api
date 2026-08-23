@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlmodel import Session, select
 
 from app.domain.entities.loan import Loan, LoanDetail, LoanDetailStatus
@@ -13,6 +15,13 @@ class SqlLoanRepository(LoanRepository):
 
     def list_all(self, *, skip: int = 0, limit: int = 50) -> list[Loan]:
         statement = select(Loan).offset(skip).limit(limit)
+        return list(self.session.exec(statement).all())
+
+    def list_by_date_range(self, start_datetime: datetime, end_datetime: datetime) -> list[Loan]:
+        statement = select(Loan).where(
+            Loan.loan_datetime >= start_datetime,
+            Loan.loan_datetime <= end_datetime,
+        )
         return list(self.session.exec(statement).all())
 
     def list_active(self, *, skip: int = 0, limit: int = 50) -> list[Loan]:

@@ -16,6 +16,7 @@ from app.services.audit_service import AuditService
 from app.services.bicycle_service import BicycleService
 from app.services.client_service import ClientService
 from app.services.loan_service import LoanService
+from app.services.report_service import ReportService
 from app.services.user_service import UserService
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -80,11 +81,20 @@ def get_audit_service(audit_repository: AuditRepositoryDep) -> AuditService:
     return AuditService(audit_repository)
 
 
+def get_report_service(
+    loan_repository: LoanRepositoryDep,
+    client_repository: ClientRepositoryDep,
+    bicycle_repository: BicycleRepositoryDep,
+) -> ReportService:
+    return ReportService(loan_repository, client_repository, bicycle_repository)
+
+
 BicycleServiceDep = Annotated[BicycleService, Depends(get_bicycle_service)]
 LoanServiceDep = Annotated[LoanService, Depends(get_loan_service)]
 ClientServiceDep = Annotated[ClientService, Depends(get_client_service)]
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 AuditServiceDep = Annotated[AuditService, Depends(get_audit_service)]
+ReportServiceDep = Annotated[ReportService, Depends(get_report_service)]
 
 
 # --- Auth guards -------------------------------------------------------

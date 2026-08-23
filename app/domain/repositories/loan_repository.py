@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from app.domain.entities.loan import Loan, LoanDetail
 
@@ -9,6 +10,9 @@ class LoanRepository(ABC):
 
     @abstractmethod
     def list_all(self, *, skip: int = 0, limit: int = 50) -> list[Loan]: ...
+
+    @abstractmethod
+    def list_by_date_range(self, start_datetime: datetime, end_datetime: datetime) -> list[Loan]: ...
 
     @abstractmethod
     def list_active(self, *, skip: int = 0, limit: int = 50) -> list[Loan]: ...
