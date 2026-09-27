@@ -41,6 +41,9 @@ class UserService:
         user = self.user_repository.get_by_id(user_id)
         return self._to_read(user) if user else None
 
+    def get_self(self, user: User) -> UserRead:
+        return self._to_read(user)
+
     def create_user(self, acting_user: User, data: UserCreate) -> UserRead:
         if self.user_repository.get_by_document(data.document):
             raise ValueError(f"A user with document '{data.document}' already exists")

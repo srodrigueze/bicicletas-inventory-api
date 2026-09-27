@@ -16,6 +16,11 @@ def change_my_password(data: PasswordChangeRequest, current_user: CurrentUserDep
     return MessageResponse(detail="Password updated")
 
 
+@router.get("/me", response_model=UserRead)
+def get_my_user(current_user: CurrentUserDep, service: UserServiceDep):
+    return service.get_self(current_user)
+
+
 @router.get("/", response_model=list[UserRead])
 def list_users(
     admin: AdminUserDep,
