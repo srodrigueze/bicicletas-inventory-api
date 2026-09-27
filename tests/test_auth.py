@@ -152,6 +152,38 @@ def test_documento_de_admin_enmascarado(client, make_user, token_for):
     assert detail.json()["document"] == "****"
 
 
+# --- Case: GET /users/me returns the caller's own data ---------------------
+def test_get_mi_usuario_devuelve_datos_propios(client, make_user, token_for):
+    operador = make_user("Operador", "1000000031", UserRole.OPERADOR)
+    headers = token_for("1000000031", "0031")
+
+    response = client.get("/users/me", headers=headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == operador.id
+    assert body["document"] == "1000000031"
+    assert body["role"] == "operador"
+
+
+# --- Case: GET /users/me masks the document for an administrator ----------
+def test_get_mi_usuario_enmascara_documento_si_es_admin(client, make_user, token_for):
+    make_user("Admin", "1000000032", UserRole.ADMINISTRADOR, is_superadmin=True)
+    headers = token_for("1000000032", "0032")
+
+    response = client.get("/users/me", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["document"] == "****"
+
+
+# --- Case: GET /users/me without a token is rejected ------------------------
+def test_get_mi_usuario_sin_token_es_rechazado(client):
+    response = client.get("/users/me")
+
+    assert response.status_code == 401
+
+
 def test_listado_de_usuarios_paginado(client, make_user, token_for):
     make_user("Superadmin", "1000000016", UserRole.ADMINISTRADOR, is_superadmin=True)
     make_user("Operador 1", "1000000017", UserRole.OPERADOR)
