@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 6  # sessions last 6 hours
 
+    image_base_url: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

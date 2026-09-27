@@ -23,3 +23,4 @@ class Bicycle(SQLModel, table=True):
     tiene_pedales: bool
     en_posesion_jac: bool = True
     observations: str | None = None
+    image_path: str | None = Field(default=None, max_length=255)

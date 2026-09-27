@@ -10,6 +10,7 @@ class BicycleCreate(BaseModel):
     rueditas_asistencia: bool
     tiene_pedales: bool
     observations: str | None = None
+    image_path: str | None = Field(default=None, max_length=255)
 
 
 class BicycleUpdate(BaseModel):
@@ -19,6 +20,7 @@ class BicycleUpdate(BaseModel):
     rueditas_asistencia: bool | None = None
     tiene_pedales: bool | None = None
     observations: str | None = None
+    image_path: str | None = Field(default=None, max_length=255)
 
 
 class BicycleRead(BaseModel):
@@ -31,5 +33,7 @@ class BicycleRead(BaseModel):
     en_posesion_jac: bool
     observations: str | None
     is_available: bool
+    image_path: str | None
+    image_url: str | None
 
     model_config = ConfigDict(from_attributes=True)

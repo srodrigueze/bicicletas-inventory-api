@@ -1,3 +1,4 @@
+from app.core.config import settings
 from app.domain.entities.audit_log import AuditAction
 from app.domain.entities.bicycle import Bicycle, BicycleCondition, BicycleSize
 from app.domain.entities.user import User
@@ -24,8 +25,17 @@ class BicycleService:
             return False
         return self.loan_repository.get_active_detail_by_bicycle(bicycle.id) is None
 
+    def _image_url(self, bicycle: Bicycle) -> str | None:
+        if not bicycle.image_path:
+            return None
+        return f"{settings.image_base_url}{bicycle.image_path}"
+
     def _to_read(self, bicycle: Bicycle) -> BicycleRead:
-        return BicycleRead(**bicycle.model_dump(), is_available=self._is_available(bicycle))
+        return BicycleRead(
+            **bicycle.model_dump(),
+            is_available=self._is_available(bicycle),
+            image_url=self._image_url(bicycle),
+        )
 
     def list_bicycles(
         self,

@@ -199,3 +199,41 @@ def test_bicycles_sin_token_es_rechazado(client):
     response = client.get("/bicycles/")
 
     assert response.status_code == 401
+
+
+# --- Case (DEV-006): image_path is persisted and returned ------------------
+def test_crear_bicicleta_con_image_path_se_persiste(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="I1", image_path="bicicletas/i1.jpg")
+
+    assert bicycle["image_path"] == "bicicletas/i1.jpg"
+
+
+# --- Case (DEV-006): without image_path, both fields are null --------------
+def test_crear_bicicleta_sin_image_path_expone_nulos(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="I2")
+
+    assert bicycle["image_path"] is None
+    assert bicycle["image_url"] is None
+
+
+# --- Case (DEV-006): image_url concatenates the configured base URL --------
+def test_image_url_concatena_ruta_base_configurada(client, auth_headers):
+    from app.core.config import settings
+
+    bicycle = _create_bicycle(client, auth_headers, code="I3", image_path="bicicletas/i3.jpg")
+
+    assert bicycle["image_url"] == f"{settings.image_base_url}bicicletas/i3.jpg"
+
+
+# --- Case (DEV-006): editing image_path updates the value ------------------
+def test_editar_image_path_actualiza_el_valor(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="I4")
+
+    response = client.patch(
+        f"/bicycles/{bicycle['id']}",
+        json={"image_path": "bicicletas/i4-nueva.jpg"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["image_path"] == "bicicletas/i4-nueva.jpg"
