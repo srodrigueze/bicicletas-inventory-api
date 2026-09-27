@@ -46,6 +46,22 @@ def _migrated_test_database():
 
 
 @pytest.fixture(autouse=True)
+def _clean_gcs_test_bucket():
+    """Deletes every object uploaded during the test from the real GCS test
+    bucket, mirroring the DB truncate-after-each-test cleanup below — tests
+    upload for real (no mocks), same philosophy as the Neon test branch."""
+    yield
+    from google.cloud import storage
+
+    from app.core.config import settings
+
+    client = storage.Client()
+    bucket = client.bucket(settings.gcs_bucket_name)
+    for blob in client.list_blobs(bucket, prefix="bicicletas/"):
+        blob.delete()
+
+
+@pytest.fixture(autouse=True)
 def _clean_database(_migrated_test_database):
     """Truncates every app table after each test so tests don't leak state
     into one another — cheaper and simpler than a transactional rollback

@@ -4,6 +4,7 @@ from app.domain.entities.bicycle import Bicycle, BicycleCondition, BicycleSize
 from app.domain.entities.user import User
 from app.domain.repositories.audit_repository import AuditRepository
 from app.domain.repositories.bicycle_repository import BicycleRepository
+from app.domain.repositories.image_storage_repository import ImageStorageRepository
 from app.domain.repositories.loan_repository import LoanRepository
 from app.schemas.bicycle import BicycleCreate, BicycleRead, BicycleUpdate
 from app.services.audit_recording import record_audit
@@ -15,10 +16,12 @@ class BicycleService:
         bicycle_repository: BicycleRepository,
         loan_repository: LoanRepository,
         audit_repository: AuditRepository,
+        image_storage_repository: ImageStorageRepository,
     ):
         self.bicycle_repository = bicycle_repository
         self.loan_repository = loan_repository
         self.audit_repository = audit_repository
+        self.image_storage_repository = image_storage_repository
 
     def _is_available(self, bicycle: Bicycle) -> bool:
         if not bicycle.en_posesion_jac:
@@ -138,3 +141,14 @@ class BicycleService:
             new_values=restored.model_dump(mode="json"),
         )
         return self._to_read(restored)
+
+    def upload_image(
+        self, acting_user: User, bicycle_id: int, filename: str, content: bytes, content_type: str
+    ) -> BicycleRead | None:
+        bicycle = self.bicycle_repository.get_by_id(bicycle_id)
+        if not bicycle:
+            return None
+        image_path = self.image_storage_repository.upload(
+            bicycle_id=bicycle_id, filename=filename, content=content, content_type=content_type
+        )
+        return self.update_bicycle(acting_user, bicycle_id, BicycleUpdate(image_path=image_path))

@@ -1,15 +1,18 @@
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import Session
 
+from app.core.config import settings
 from app.core.database import get_session
 from app.core.security import decode_access_token
 from app.domain.entities.user import User, UserRole, UserStatus
 from app.infrastructure.repositories.audit_repository_sql import SqlAuditRepository
 from app.infrastructure.repositories.bicycle_repository_sql import SqlBicycleRepository
 from app.infrastructure.repositories.client_repository_sql import SqlClientRepository
+from app.infrastructure.repositories.gcs_image_storage_repository import GcsImageStorageRepository
 from app.infrastructure.repositories.loan_repository_sql import SqlLoanRepository
 from app.infrastructure.repositories.user_repository_sql import SqlUserRepository
 from app.services.audit_service import AuditService
@@ -42,19 +45,26 @@ def get_audit_repository(session: SessionDep) -> SqlAuditRepository:
     return SqlAuditRepository(session)
 
 
+@lru_cache(maxsize=1)
+def get_image_storage_repository() -> GcsImageStorageRepository:
+    return GcsImageStorageRepository(settings.gcs_bucket_name)
+
+
 BicycleRepositoryDep = Annotated[SqlBicycleRepository, Depends(get_bicycle_repository)]
 LoanRepositoryDep = Annotated[SqlLoanRepository, Depends(get_loan_repository)]
 ClientRepositoryDep = Annotated[SqlClientRepository, Depends(get_client_repository)]
 UserRepositoryDep = Annotated[SqlUserRepository, Depends(get_user_repository)]
 AuditRepositoryDep = Annotated[SqlAuditRepository, Depends(get_audit_repository)]
+ImageStorageRepositoryDep = Annotated[GcsImageStorageRepository, Depends(get_image_storage_repository)]
 
 
 def get_bicycle_service(
     bicycle_repository: BicycleRepositoryDep,
     loan_repository: LoanRepositoryDep,
     audit_repository: AuditRepositoryDep,
+    image_storage_repository: ImageStorageRepositoryDep,
 ) -> BicycleService:
-    return BicycleService(bicycle_repository, loan_repository, audit_repository)
+    return BicycleService(bicycle_repository, loan_repository, audit_repository, image_storage_repository)
 
 
 def get_loan_service(

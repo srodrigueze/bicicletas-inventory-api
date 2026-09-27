@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 6  # sessions last 6 hours
 
     image_base_url: str = ""
+    gcs_bucket_name: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

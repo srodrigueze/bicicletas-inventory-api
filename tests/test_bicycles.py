@@ -237,3 +237,75 @@ def test_editar_image_path_actualiza_el_valor(client, auth_headers):
 
     assert response.status_code == 200, response.text
     assert response.json()["image_path"] == "bicicletas/i4-nueva.jpg"
+
+
+# --- Case (DEV-007): uploading a valid image stores it in GCS and updates image_path
+def test_subir_imagen_valida_actualiza_image_path(client, auth_headers):
+    from google.cloud import storage
+
+    from app.core.config import settings
+
+    bicycle = _create_bicycle(client, auth_headers, code="U1")
+
+    response = client.post(
+        f"/bicycles/{bicycle['id']}/image",
+        files={"file": ("foto.jpg", b"contenido-de-prueba", "image/jpeg")},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["image_path"].startswith(f"bicicletas/{bicycle['id']}/")
+    assert body["image_url"] == f"{settings.image_base_url}{body['image_path']}"
+
+    gcs_client = storage.Client()
+    blob = gcs_client.bucket(settings.gcs_bucket_name).blob(body["image_path"])
+    assert blob.exists()
+
+
+# --- Case (DEV-007): an unsupported content type is rejected ---------------
+def test_subir_imagen_con_tipo_no_soportado_es_rechazada(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="U2")
+
+    response = client.post(
+        f"/bicycles/{bicycle['id']}/image",
+        files={"file": ("archivo.txt", b"no es una imagen", "text/plain")},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 415
+
+
+# --- Case (DEV-007): a file over 5MB is rejected ----------------------------
+def test_subir_imagen_muy_grande_es_rechazada(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="U3")
+    oversized_content = b"0" * (5 * 1024 * 1024 + 1)
+
+    response = client.post(
+        f"/bicycles/{bicycle['id']}/image",
+        files={"file": ("grande.jpg", oversized_content, "image/jpeg")},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 413
+
+
+# --- Case (DEV-007): uploading for a nonexistent bicycle returns 404 -------
+def test_subir_imagen_a_bicicleta_inexistente_da_404(client, auth_headers):
+    response = client.post(
+        "/bicycles/999999/image",
+        files={"file": ("foto.jpg", b"contenido", "image/jpeg")},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 404
+
+
+# --- Case (DEV-007): the upload endpoint requires authentication -----------
+def test_subir_imagen_sin_token_es_rechazado(client):
+    response = client.post(
+        "/bicycles/1/image",
+        files={"file": ("foto.jpg", b"contenido", "image/jpeg")},
+    )
+
+    assert response.status_code == 401

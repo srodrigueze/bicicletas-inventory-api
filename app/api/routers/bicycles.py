@@ -1,10 +1,13 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
 from app.api.deps import BicycleServiceDep, CurrentUserDep
 from app.domain.entities.bicycle import BicycleCondition, BicycleSize
 from app.schemas.bicycle import BicycleCreate, BicycleRead, BicycleUpdate
 
 router = APIRouter(prefix="/bicycles", tags=["bicycles"])
+
+_ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 
 
 @router.get("/", response_model=list[BicycleRead])
@@ -70,6 +73,30 @@ def delete_bicycle(bicycle_id: int, current_user: CurrentUserDep, service: Bicyc
 @router.patch("/{bicycle_id}/restore", response_model=BicycleRead)
 def restore_bicycle(bicycle_id: int, current_user: CurrentUserDep, service: BicycleServiceDep):
     bicycle = service.restore_bicycle(current_user, bicycle_id)
+    if not bicycle:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
+    return bicycle
+
+
+@router.post("/{bicycle_id}/image", response_model=BicycleRead)
+def upload_bicycle_image(
+    bicycle_id: int,
+    current_user: CurrentUserDep,
+    service: BicycleServiceDep,
+    file: UploadFile = File(...),
+):
+    if file.content_type not in _ALLOWED_IMAGE_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Only image/jpeg, image/png or image/webp files are allowed",
+        )
+    content = file.file.read()
+    if len(content) > _MAX_IMAGE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Image must be at most 5MB",
+        )
+    bicycle = service.upload_image(current_user, bicycle_id, file.filename, content, file.content_type)
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
     return bicycle
