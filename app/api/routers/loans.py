@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUserDep, LoanServiceDep
-from app.schemas.loan import LoanCreate, LoanRead, LoanSwapBicycle
+from app.schemas.loan import LoanAddBicycles, LoanCreate, LoanRead
 
 router = APIRouter(prefix="/loans", tags=["loans"])
 
@@ -41,9 +41,9 @@ def return_detail(loan_id: int, detail_id: int, current_user: CurrentUserDep, se
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
-@router.post("/{loan_id}/swap", response_model=LoanRead)
-def swap_bicycle(loan_id: int, data: LoanSwapBicycle, current_user: CurrentUserDep, service: LoanServiceDep):
+@router.post("/{loan_id}/details", response_model=LoanRead)
+def add_bicycles(loan_id: int, data: LoanAddBicycles, current_user: CurrentUserDep, service: LoanServiceDep):
     try:
-        return service.swap_bicycle(current_user, loan_id, data.detail_id, data.new_bicycle_id)
+        return service.add_bicycles(current_user, loan_id, data.bicycle_ids)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

@@ -11,8 +11,9 @@ class AuditAction(str, Enum):
     restore = "restore"
     activate = "activate"
     deactivate = "deactivate"
-    swap = "swap"
+    swap = "swap"  # no longer produced (swap removed 2026-09-28); kept so historical rows still parse
     returned = "returned"
+    add_bicycle = "add_bicycle"
 
 
 class AuditLog(SQLModel, table=True):

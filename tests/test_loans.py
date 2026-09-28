@@ -191,25 +191,64 @@ def test_prestamo_con_todas_las_lineas_entregadas_deja_de_ser_activo(client, aut
     assert loan["id"] in [item["id"] for item in full_list.json()]
 
 
-# --- Case 11: swapping a bicycle within the same loan -----------------------
-def test_cambiar_bicicleta_dentro_del_mismo_prestamo(client, auth_headers):
+# --- Case 11: changing a bicycle is now "return one, then add another" ----
+# under the same loan_id, not a single swap operation ------------------------
+def test_cambiar_bicicleta_es_devolver_y_agregar_bajo_el_mismo_prestamo(client, auth_headers):
     old_bike = _create_bicycle(client, auth_headers, code="L11A")
     new_bike = _create_bicycle(client, auth_headers, code="L11B")
     loan = _create_loan(client, auth_headers, [old_bike["id"]], document="2000013")
     old_detail_id = loan["details"][0]["id"]
 
-    swapped = client.post(
-        f"/loans/{loan['id']}/swap",
-        json={"detail_id": old_detail_id, "new_bicycle_id": new_bike["id"]},
+    client.post(f"/loans/{loan['id']}/details/{old_detail_id}/return", headers=auth_headers)
+    added = client.post(
+        f"/loans/{loan['id']}/details",
+        json={"bicycle_ids": [new_bike["id"]]},
         headers=auth_headers,
     )
 
-    assert swapped.status_code == 200, swapped.text
-    body = swapped.json()
+    assert added.status_code == 200, added.text
+    body = added.json()
     assert body["id"] == loan["id"]
     statuses_by_bike = {d["bicycle_id"]: d["status"] for d in body["details"]}
     assert statuses_by_bike[old_bike["id"]] == "returned"
     assert statuses_by_bike[new_bike["id"]] == "on_loan"
+
+
+# --- Case 14: a client with an active loan can get more bicycles added to --
+# the SAME loan, without returning the ones they already have --------------
+def test_agregar_bicicletas_a_prestamo_activo_sin_devolver_las_anteriores(client, auth_headers):
+    bike_a = _create_bicycle(client, auth_headers, code="L14A")
+    bike_b = _create_bicycle(client, auth_headers, code="L14B")
+    loan = _create_loan(client, auth_headers, [bike_a["id"]], document="2000019")
+
+    response = client.post(
+        f"/loans/{loan['id']}/details",
+        json={"bicycle_ids": [bike_b["id"]]},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"] == loan["id"]
+    statuses_by_bike = {d["bicycle_id"]: d["status"] for d in body["details"]}
+    assert statuses_by_bike[bike_a["id"]] == "on_loan"
+    assert statuses_by_bike[bike_b["id"]] == "on_loan"
+
+
+# --- Case 15: adding an unavailable bicycle to a loan is rejected ----------
+def test_agregar_bicicleta_no_disponible_es_rechazado(client, auth_headers):
+    bike_a = _create_bicycle(client, auth_headers, code="L15A")
+    taken_bike = _create_bicycle(client, auth_headers, code="L15B")
+    loan = _create_loan(client, auth_headers, [bike_a["id"]], document="2000020")
+    _create_loan(client, auth_headers, [taken_bike["id"]], document="2000021")
+
+    response = client.post(
+        f"/loans/{loan['id']}/details",
+        json={"bicycle_ids": [taken_bike["id"]]},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 409
 
 
 # --- Case 12: the default listing shows only active loans, filter toggles -

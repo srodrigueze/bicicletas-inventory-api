@@ -137,20 +137,20 @@ def test_crear_prestamo_genera_auditoria_create(client, auth_headers):
     assert any(log["entity_id"] == loan["id"] for log in matches)
 
 
-# --- Case 8: swapping a bicycle generates a SWAP audit log -----------------
-def test_cambiar_bicicleta_genera_auditoria_swap(client, auth_headers):
-    old_bike = _create_bicycle(client, auth_headers, code="A8A")
-    new_bike = _create_bicycle(client, auth_headers, code="A8B")
-    loan = _create_loan(client, auth_headers, [old_bike["id"]], document="3000000008")
-    detail_id = loan["details"][0]["id"]
+# --- Case 8: adding a bicycle to an existing loan generates an ADD_BICYCLE
+# audit log (replaces the removed swap action, 2026-09-28) -----------------
+def test_agregar_bicicleta_genera_auditoria_add_bicycle(client, auth_headers):
+    bike = _create_bicycle(client, auth_headers, code="A8A")
+    extra_bike = _create_bicycle(client, auth_headers, code="A8B")
+    loan = _create_loan(client, auth_headers, [bike["id"]], document="3000000008")
 
     client.post(
-        f"/loans/{loan['id']}/swap",
-        json={"detail_id": detail_id, "new_bicycle_id": new_bike["id"]},
+        f"/loans/{loan['id']}/details",
+        json={"bicycle_ids": [extra_bike["id"]]},
         headers=auth_headers,
     )
 
-    matches = _logs_for(client, auth_headers, "Loan", "swap")
+    matches = _logs_for(client, auth_headers, "Loan", "add_bicycle")
     assert any(log["entity_id"] == loan["id"] for log in matches)
 
 

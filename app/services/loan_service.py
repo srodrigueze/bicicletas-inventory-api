@@ -124,32 +124,24 @@ class LoanService:
         )
         return self._to_read(loan)
 
-    def swap_bicycle(self, acting_user: User, loan_id: int, detail_id: int, new_bicycle_id: int) -> LoanRead:
+    def add_bicycles(self, acting_user: User, loan_id: int, bicycle_ids: list[int]) -> LoanRead:
         loan = self.loan_repository.get_by_id(loan_id)
         if not loan:
             raise ValueError(f"Loan {loan_id} does not exist")
-        detail = self.loan_repository.get_detail_by_id(detail_id)
-        if not detail or detail.loan_id != loan_id:
-            raise ValueError(f"Loan detail {detail_id} does not belong to loan {loan_id}")
-        if detail.status != LoanDetailStatus.on_loan:
-            raise ValueError(f"Loan detail {detail_id} is already returned")
 
-        new_bicycle = self._validate_bicycle_available(new_bicycle_id)
-
-        previous_snapshot = detail.model_dump(mode="json")
-        detail.status = LoanDetailStatus.returned
-        detail.returned_at = datetime.now(timezone.utc)
-        self.loan_repository.update_detail(detail)
-
-        new_detail = self.loan_repository.add_detail(LoanDetail(loan_id=loan_id, bicycle_id=new_bicycle.id))
+        bicycles = [self._validate_bicycle_available(bicycle_id) for bicycle_id in bicycle_ids]
+        details = [
+            self.loan_repository.add_detail(LoanDetail(loan_id=loan_id, bicycle_id=bicycle.id))
+            for bicycle in bicycles
+        ]
 
         record_audit(
             self.audit_repository,
             user=acting_user,
-            action=AuditAction.swap,
+            action=AuditAction.add_bicycle,
             entity_name="Loan",
             entity_id=loan_id,
-            previous_values=previous_snapshot,
-            new_values=new_detail.model_dump(mode="json"),
+            previous_values=None,
+            new_values={"details": [detail.model_dump(mode="json") for detail in details]},
         )
         return self._to_read(loan)

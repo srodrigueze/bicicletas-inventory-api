@@ -11,9 +11,8 @@ class LoanCreate(BaseModel):
     client: ClientData
 
 
-class LoanSwapBicycle(BaseModel):
-    detail_id: int
-    new_bicycle_id: int
+class LoanAddBicycles(BaseModel):
+    bicycle_ids: list[int] = Field(..., min_length=1)
 
 
 class LoanDetailRead(BaseModel):
