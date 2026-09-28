@@ -20,3 +20,9 @@ class SqlClientRepository(ClientRepository):
         self.session.commit()
         self.session.refresh(client)
         return client
+
+    def update(self, client: Client) -> Client:
+        self.session.add(client)
+        self.session.commit()
+        self.session.refresh(client)
+        return client

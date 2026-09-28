@@ -12,3 +12,6 @@ class ClientRepository(ABC):
 
     @abstractmethod
     def create(self, client: Client) -> Client: ...
+
+    @abstractmethod
+    def update(self, client: Client) -> Client: ...

@@ -53,10 +53,32 @@ def test_reutilizar_cliente_existente_por_documento(client, auth_headers):
     bike_b = _create_bicycle(client, auth_headers, code="L2B")
 
     first_loan = _create_loan(client, auth_headers, [bike_a["id"]], document="2000002", full_name="Ana Gomez")
-    second_loan = _create_loan(client, auth_headers, [bike_b["id"]], document="2000002", full_name="Otro nombre")
+    second_loan = _create_loan(client, auth_headers, [bike_b["id"]], document="2000002", full_name="Ana Gomez")
 
     assert first_loan["client"]["id"] == second_loan["client"]["id"]
     assert second_loan["client"]["full_name"] == "Ana Gomez"
+
+
+# --- Case 2b: registering a loan for an existing client with different data
+# updates the stored client record instead of keeping the stale data --------
+def test_datos_de_cliente_distintos_actualizan_el_registro_existente(client, auth_headers):
+    bike_a = _create_bicycle(client, auth_headers, code="L2C")
+    bike_b = _create_bicycle(client, auth_headers, code="L2D")
+
+    first_loan = _create_loan(
+        client, auth_headers, [bike_a["id"]], document="2000018", full_name="Ana Gomez", phone="3000000000"
+    )
+    second_loan = _create_loan(
+        client, auth_headers, [bike_b["id"]], document="2000018", full_name="Ana G. Ramirez", phone="3111111111"
+    )
+
+    assert first_loan["client"]["id"] == second_loan["client"]["id"]
+    assert second_loan["client"]["full_name"] == "Ana G. Ramirez"
+    assert second_loan["client"]["phone"] == "3111111111"
+
+    by_document = client.get("/clients/by-document/2000018", headers=auth_headers)
+    assert by_document.json()["full_name"] == "Ana G. Ramirez"
+    assert by_document.json()["phone"] == "3111111111"
 
 
 # --- Case 3: client document out of range (5 or 15 chars) is rejected ------

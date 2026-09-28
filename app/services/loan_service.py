@@ -41,11 +41,15 @@ class LoanService:
 
     def _get_or_create_client(self, data: ClientData) -> Client:
         existing = self.client_repository.get_by_document(data.document)
-        if existing:
-            return existing
-        return self.client_repository.create(
-            Client(full_name=data.full_name, document=data.document, phone=data.phone)
-        )
+        if not existing:
+            return self.client_repository.create(
+                Client(full_name=data.full_name, document=data.document, phone=data.phone)
+            )
+        if existing.full_name != data.full_name or existing.phone != data.phone:
+            existing.full_name = data.full_name
+            existing.phone = data.phone
+            existing = self.client_repository.update(existing)
+        return existing
 
     def _validate_bicycle_available(self, bicycle_id: int) -> Bicycle:
         bicycle = self.bicycle_repository.get_by_id(bicycle_id)
