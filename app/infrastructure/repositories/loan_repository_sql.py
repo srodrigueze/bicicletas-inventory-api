@@ -35,6 +35,15 @@ class SqlLoanRepository(LoanRepository):
         )
         return list(self.session.exec(statement).all())
 
+    def get_active_loan_by_client_id(self, client_id: int) -> Loan | None:
+        statement = (
+            select(Loan)
+            .join(LoanDetail, LoanDetail.loan_id == Loan.id)
+            .where(Loan.client_id == client_id, LoanDetail.status == LoanDetailStatus.on_loan)
+            .distinct()
+        )
+        return self.session.exec(statement).first()
+
     def create(self, loan: Loan) -> Loan:
         self.session.add(loan)
         self.session.commit()

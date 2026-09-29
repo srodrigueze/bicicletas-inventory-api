@@ -74,6 +74,11 @@ class LoanService:
 
     def create_loan(self, acting_user: User, data: LoanCreate) -> LoanRead:
         client = self._get_or_create_client(data.client)
+        if self.loan_repository.get_active_loan_by_client_id(client.id):
+            raise ValueError(
+                f"Client {client.document} already has an active loan; "
+                "add bicycles to it instead of creating a new one"
+            )
         bicycles = [self._validate_bicycle_available(bicycle_id) for bicycle_id in data.bicycle_ids]
 
         loan = Loan(client_id=client.id, loan_datetime=datetime.now(timezone.utc))

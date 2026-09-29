@@ -37,6 +37,14 @@ def _create_loan(client, auth_headers, bicycle_ids, **client_overrides):
     return response.json()
 
 
+def _return_loan(client, auth_headers, loan):
+    """Marks every on_loan detail of a loan as returned, so the client is
+    free to open a new loan (a client can only have one active loan)."""
+    for detail in loan["details"]:
+        if detail["status"] == "on_loan":
+            client.post(f"/loans/{loan['id']}/details/{detail['id']}/return", headers=auth_headers)
+
+
 # --- Case 1: creating a new client while registering a loan -----------------
 def test_crear_cliente_nuevo_al_registrar_prestamo(client, auth_headers):
     bicycle = _create_bicycle(client, auth_headers, code="L1")
@@ -53,6 +61,7 @@ def test_reutilizar_cliente_existente_por_documento(client, auth_headers):
     bike_b = _create_bicycle(client, auth_headers, code="L2B")
 
     first_loan = _create_loan(client, auth_headers, [bike_a["id"]], document="2000002", full_name="Ana Gomez")
+    _return_loan(client, auth_headers, first_loan)
     second_loan = _create_loan(client, auth_headers, [bike_b["id"]], document="2000002", full_name="Ana Gomez")
 
     assert first_loan["client"]["id"] == second_loan["client"]["id"]
@@ -68,6 +77,7 @@ def test_datos_de_cliente_distintos_actualizan_el_registro_existente(client, aut
     first_loan = _create_loan(
         client, auth_headers, [bike_a["id"]], document="2000018", full_name="Ana Gomez", phone="3000000000"
     )
+    _return_loan(client, auth_headers, first_loan)
     second_loan = _create_loan(
         client, auth_headers, [bike_b["id"]], document="2000018", full_name="Ana G. Ramirez", phone="3111111111"
     )
@@ -152,6 +162,22 @@ def test_bicicleta_con_prestamo_activo_no_se_reasigna(client, auth_headers):
     response = client.post(
         "/loans/",
         json={"bicycle_ids": [bicycle["id"]], "client": _client_payload(document="2000009")},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 409
+
+
+# --- Case 16: a client with an active loan cannot open a second one --------
+# (must add bicycles to the existing loan instead) --------------------------
+def test_cliente_con_prestamo_activo_no_puede_crear_otro(client, auth_headers):
+    bike_a = _create_bicycle(client, auth_headers, code="L16A")
+    bike_b = _create_bicycle(client, auth_headers, code="L16B")
+    _create_loan(client, auth_headers, [bike_a["id"]], document="2000022")
+
+    response = client.post(
+        "/loans/",
+        json={"bicycle_ids": [bike_b["id"]], "client": _client_payload(document="2000022")},
         headers=auth_headers,
     )
 

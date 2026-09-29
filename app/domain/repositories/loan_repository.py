@@ -18,6 +18,9 @@ class LoanRepository(ABC):
     def list_active(self, *, skip: int = 0, limit: int = 50) -> list[Loan]: ...
 
     @abstractmethod
+    def get_active_loan_by_client_id(self, client_id: int) -> Loan | None: ...
+
+    @abstractmethod
     def create(self, loan: Loan) -> Loan: ...
 
     @abstractmethod
