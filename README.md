@@ -103,9 +103,16 @@ por JWT y restringido a usuarios con rol `administrador` — ver
 `app/api/routers/users.py` y `app/api/deps.py` (`get_current_user`,
 `require_administrador`).
 
-Pendiente: el JWT todavía no protege los endpoints de escritura de `bicycles`/`loans`
-— hoy solo protege `users`. La dependencia `get_current_user` ya existe en
-`app/api/deps.py` y puede reutilizarse ahí en un paso posterior.
+Todos los endpoints de `bicycles`, `loans`, `clients`, `audits` y `reports` requieren
+JWT (`CurrentUserDep`/`AdminUserDep` en `app/api/deps.py`); el único endpoint público
+sin autenticación es el health check (`GET /`, ver abajo).
+
+## Health check
+
+`GET /` no requiere autenticación y confirma dos cosas: que el proceso está arriba y
+que la conexión a la base de datos responde (`SELECT 1`). Devuelve `200
+{"status": "ok"}` si todo está bien, o `503` si la base de datos no responde. Pensado
+para monitores de uptime externos y para el health check/liveness probe de Cloud Run.
 
 ## Configuración local
 
