@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import date
 from io import BytesIO
 
 from reportlab.lib import colors
@@ -7,6 +7,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.core.timezone import day_bounds_utc
 from app.domain.repositories.bicycle_repository import BicycleRepository
 from app.domain.repositories.client_repository import ClientRepository
 from app.domain.repositories.loan_repository import LoanRepository
@@ -29,8 +30,8 @@ class ReportService:
         if start_date > end_date:
             raise ValueError("start_date must not be after end_date")
 
-        start_datetime = datetime.combine(start_date, time.min, tzinfo=timezone.utc)
-        end_datetime = datetime.combine(end_date, time.max, tzinfo=timezone.utc)
+        start_datetime = day_bounds_utc(start_date)[0]
+        end_datetime = day_bounds_utc(end_date)[1]
         loans = self.loan_repository.list_by_date_range(start_datetime, end_datetime)
 
         buffer = BytesIO()
