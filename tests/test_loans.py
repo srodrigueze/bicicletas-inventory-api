@@ -322,3 +322,50 @@ def test_loans_sin_token_es_rechazado(client):
     response = client.get("/loans/")
 
     assert response.status_code == 401
+
+
+# --- Case 17: the DB-level unique index rejects a second on_loan detail for
+# the same bicycle even if it's inserted directly, bypassing every app-level
+# check — this is what actually closes the race window between two
+# near-simultaneous requests, not the app-level pre-check alone -------------
+def test_indice_unico_impide_dos_lineas_on_loan_para_la_misma_bicicleta(client, auth_headers):
+    from sqlalchemy.exc import IntegrityError
+    from sqlmodel import Session
+
+    from app.core.database import engine
+    from app.domain.entities.loan import LoanDetail
+
+    bicycle = _create_bicycle(client, auth_headers, code="L17")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="2000023")
+
+    with Session(engine) as session:
+        session.add(LoanDetail(loan_id=loan["id"], bicycle_id=bicycle["id"]))
+        try:
+            session.commit()
+            assert False, "expected the unique index to reject a second on_loan detail"
+        except IntegrityError:
+            session.rollback()
+
+
+# --- Case 18: if two requests race past the app-level availability check,
+# the DB conflict is still translated into a clean 409, not a raw 500 -------
+def test_conflicto_de_carrera_se_traduce_a_409(client, auth_headers, monkeypatch):
+    import app.services.loan_service as loan_service_module
+
+    bicycle = _create_bicycle(client, auth_headers, code="L18")
+    _create_loan(client, auth_headers, [bicycle["id"]], document="2000024")
+
+    def fake_validate(self, bicycle_id):
+        # Simulates two requests racing past the pre-check at the same time:
+        # both see the bicycle as available, but only one INSERT can win.
+        return self.bicycle_repository.get_by_id(bicycle_id)
+
+    monkeypatch.setattr(loan_service_module.LoanService, "_validate_bicycle_available", fake_validate)
+
+    response = client.post(
+        "/loans/",
+        json={"bicycle_ids": [bicycle["id"]], "client": _client_payload(document="2000025")},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 409

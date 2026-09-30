@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.domain.entities.loan import Loan, LoanDetail, LoanDetailStatus
@@ -59,7 +60,16 @@ class SqlLoanRepository(LoanRepository):
 
     def add_detail(self, detail: LoanDetail) -> LoanDetail:
         self.session.add(detail)
-        self.session.commit()
+        try:
+            self.session.commit()
+        except IntegrityError:
+            # Two near-simultaneous requests can both pass the app-level
+            # availability check before either commits; the partial unique
+            # index (one_active_loan_per_bicycle) is what actually stops the
+            # second one. Roll back so the session is usable again and let
+            # the caller translate this into a business conflict.
+            self.session.rollback()
+            raise
         self.session.refresh(detail)
         return detail
 

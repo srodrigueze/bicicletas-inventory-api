@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
+
 from app.domain.entities.audit_log import AuditAction
 from app.domain.entities.bicycle import Bicycle
 from app.domain.entities.client import Client
@@ -51,6 +53,16 @@ class LoanService:
             existing = self.client_repository.update(existing)
         return existing
 
+    def _add_detail_or_conflict(self, loan_id: int, bicycle_id: int) -> LoanDetail:
+        try:
+            return self.loan_repository.add_detail(LoanDetail(loan_id=loan_id, bicycle_id=bicycle_id))
+        except IntegrityError as exc:
+            # The app-level availability check passed, but a concurrent
+            # request beat us to it and the DB's unique index rejected this
+            # insert — translate it into the same conflict signal used for
+            # the ordinary "not available" case.
+            raise ValueError(f"Bicycle {bicycle_id} is already on an active loan") from exc
+
     def _validate_bicycle_available(self, bicycle_id: int) -> Bicycle:
         bicycle = self.bicycle_repository.get_by_id(bicycle_id)
         if not bicycle:
@@ -84,10 +96,7 @@ class LoanService:
         loan = Loan(client_id=client.id, loan_datetime=datetime.now(timezone.utc))
         created_loan = self.loan_repository.create(loan)
 
-        details = [
-            self.loan_repository.add_detail(LoanDetail(loan_id=created_loan.id, bicycle_id=bicycle.id))
-            for bicycle in bicycles
-        ]
+        details = [self._add_detail_or_conflict(created_loan.id, bicycle.id) for bicycle in bicycles]
 
         record_audit(
             self.audit_repository,
@@ -135,10 +144,7 @@ class LoanService:
             raise ValueError(f"Loan {loan_id} does not exist")
 
         bicycles = [self._validate_bicycle_available(bicycle_id) for bicycle_id in bicycle_ids]
-        details = [
-            self.loan_repository.add_detail(LoanDetail(loan_id=loan_id, bicycle_id=bicycle.id))
-            for bicycle in bicycles
-        ]
+        details = [self._add_detail_or_conflict(loan_id, bicycle.id) for bicycle in bicycles]
 
         record_audit(
             self.audit_repository,
