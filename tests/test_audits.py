@@ -5,6 +5,8 @@ documentation vault for the criteria/test-case definition and the
 validation report.
 """
 
+from datetime import date, timedelta
+
 from sqlalchemy.exc import DBAPIError
 
 from app.domain.entities.user import UserRole
@@ -222,3 +224,80 @@ def test_audit_log_es_inmutable_a_nivel_de_base_de_datos(client, auth_headers, d
         assert False, "expected the trigger to reject the DELETE"
     except DBAPIError:
         session.rollback()
+
+
+# --- Case 15: filtering by a single date includes only that day's logs -----
+def test_auditorias_filtradas_por_un_solo_dia(client, auth_headers):
+    _create_bicycle(client, auth_headers, code="A15")
+    today = date.today().isoformat()
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+    today_logs = client.get(f"/audits/?start_date={today}", headers=auth_headers).json()
+    yesterday_logs = client.get(
+        f"/audits/?start_date={yesterday}&end_date={yesterday}", headers=auth_headers
+    ).json()
+
+    assert any(log["entity_name"] == "Bicycle" for log in today_logs)
+    assert yesterday_logs == []
+
+
+# --- Case 16: filtering by a date range -------------------------------------
+def test_auditorias_filtradas_por_rango_de_fechas(client, auth_headers):
+    _create_bicycle(client, auth_headers, code="A16")
+    start = (date.today() - timedelta(days=1)).isoformat()
+    end = date.today().isoformat()
+
+    logs = client.get(f"/audits/?start_date={start}&end_date={end}", headers=auth_headers).json()
+
+    assert any(log["entity_name"] == "Bicycle" for log in logs)
+
+
+# --- Case 17: an inverted range (start after end) is rejected --------------
+def test_auditorias_rango_invertido_es_rechazado(client, auth_headers):
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+
+    response = client.get(
+        f"/audits/?start_date={today.isoformat()}&end_date={yesterday.isoformat()}", headers=auth_headers
+    )
+
+    assert response.status_code == 422
+
+
+# --- Case 18: filtering by user_id returns only that user's own actions ----
+def test_auditorias_filtradas_por_usuario(client, make_user, token_for):
+    admin_headers = _admin_headers(make_user, token_for, document="1010144578")
+    second_admin_headers = _admin_headers(make_user, token_for, document="1010144579")
+
+    created_by_admin = client.post(
+        "/users/",
+        json={"full_name": "Por Admin 1", "document": "3000000098", "status": "activo", "role": "operador"},
+        headers=admin_headers,
+    ).json()
+    created_by_second = client.post(
+        "/users/",
+        json={"full_name": "Por Admin 2", "document": "3000000099", "status": "activo", "role": "operador"},
+        headers=second_admin_headers,
+    ).json()
+
+    admin_id = client.get("/users/me", headers=admin_headers).json()["id"]
+
+    logs = client.get(f"/audits/?user_id={admin_id}", headers=admin_headers).json()
+
+    assert all(log["user_id"] == admin_id for log in logs)
+    assert any(log["entity_id"] == created_by_admin["id"] for log in logs)
+    assert not any(log["entity_id"] == created_by_second["id"] for log in logs)
+
+
+# --- Case 19: filtering by entity_name returns only logs for that entity ---
+def test_auditorias_filtradas_por_entidad(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="A19")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="4000000001")
+
+    bicycle_logs = client.get("/audits/?entity_name=Bicycle", headers=auth_headers).json()
+    loan_logs = client.get("/audits/?entity_name=Loan", headers=auth_headers).json()
+
+    assert all(log["entity_name"] == "Bicycle" for log in bicycle_logs)
+    assert any(log["entity_id"] == bicycle["id"] for log in bicycle_logs)
+    assert all(log["entity_name"] == "Loan" for log in loan_logs)
+    assert any(log["entity_id"] == loan["id"] for log in loan_logs)
