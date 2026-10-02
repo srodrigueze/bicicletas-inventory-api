@@ -11,6 +11,7 @@ class BicycleCreate(BaseModel):
     tiene_pedales: bool
     observations: str | None = None
     image_path: str | None = Field(default=None, max_length=255)
+    numero_frenos: int = Field(default=2, ge=0, le=2)
 
 
 class BicycleUpdate(BaseModel):
@@ -21,6 +22,7 @@ class BicycleUpdate(BaseModel):
     tiene_pedales: bool | None = None
     observations: str | None = None
     image_path: str | None = Field(default=None, max_length=255)
+    numero_frenos: int | None = Field(default=None, ge=0, le=2)
 
 
 class BicycleRead(BaseModel):
@@ -35,5 +37,6 @@ class BicycleRead(BaseModel):
     is_available: bool
     image_path: str | None
     image_url: str | None
+    numero_frenos: int
 
     model_config = ConfigDict(from_attributes=True)

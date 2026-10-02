@@ -309,3 +309,47 @@ def test_subir_imagen_sin_token_es_rechazado(client):
     )
 
     assert response.status_code == 401
+
+
+# --- Case (DEV-008): numero_frenos defaults to 2 when not sent -------------
+def test_crear_bicicleta_sin_numero_frenos_usa_el_valor_por_defecto(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="FR1")
+
+    assert bicycle["numero_frenos"] == 2
+
+
+# --- Case (DEV-008): numero_frenos 0 and 1 are accepted ---------------------
+def test_crear_bicicleta_con_numero_frenos_valido_se_persiste(client, auth_headers):
+    sin_frenos = _create_bicycle(client, auth_headers, code="FR2", numero_frenos=0)
+    un_freno = _create_bicycle(client, auth_headers, code="FR3", numero_frenos=1)
+
+    assert sin_frenos["numero_frenos"] == 0
+    assert un_freno["numero_frenos"] == 1
+
+
+# --- Case (DEV-008): a value outside 0-2 is rejected ------------------------
+def test_crear_bicicleta_con_numero_frenos_invalido_es_rechazado(client, auth_headers):
+    response = client.post(
+        "/bicycles/",
+        json={
+            "code": "FR4",
+            "condition": "good",
+            "size": "medium",
+            "rueditas_asistencia": False,
+            "tiene_pedales": True,
+            "numero_frenos": 3,
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+
+
+# --- Case (DEV-008): editing numero_frenos updates the value ---------------
+def test_editar_numero_frenos_actualiza_el_valor(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="FR5")
+
+    response = client.patch(f"/bicycles/{bicycle['id']}", json={"numero_frenos": 1}, headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["numero_frenos"] == 1
