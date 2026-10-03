@@ -36,6 +36,44 @@ class SqlLoanRepository(LoanRepository):
         )
         return list(self.session.exec(statement).all())
 
+    def _has_detail_status(self, status: LoanDetailStatus):
+        return (
+            select(LoanDetail.id)
+            .where(LoanDetail.loan_id == Loan.id, LoanDetail.status == status)
+            .exists()
+        )
+
+    def list_filtered(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 50,
+        status: str | None = None,
+        start_datetime: datetime | None = None,
+        end_datetime: datetime | None = None,
+    ) -> list[Loan]:
+        statement = select(Loan)
+        if start_datetime is not None:
+            statement = statement.where(Loan.loan_datetime >= start_datetime)
+        if end_datetime is not None:
+            statement = statement.where(Loan.loan_datetime <= end_datetime)
+
+        if status == "activo":
+            statement = statement.where(self._has_detail_status(LoanDetailStatus.on_loan))
+        elif status == "incumplido":
+            statement = statement.where(
+                ~self._has_detail_status(LoanDetailStatus.on_loan),
+                self._has_detail_status(LoanDetailStatus.incumplido),
+            )
+        elif status == "cerrado":
+            statement = statement.where(
+                ~self._has_detail_status(LoanDetailStatus.on_loan),
+                ~self._has_detail_status(LoanDetailStatus.incumplido),
+            )
+
+        statement = statement.order_by(Loan.loan_datetime.desc()).offset(skip).limit(limit)
+        return list(self.session.exec(statement).all())
+
     def get_active_loan_by_client_id(self, client_id: int) -> Loan | None:
         statement = (
             select(Loan)

@@ -1,3 +1,6 @@
+from datetime import date
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUserDep, LoanServiceDep
@@ -13,8 +16,22 @@ def list_loans(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     active_only: bool = Query(default=True),
+    status_filter: Literal["activo", "incumplido", "cerrado"] | None = Query(default=None, alias="status"),
+    start_date: date | None = Query(default=None, description="Un solo valor filtra ese día completo"),
+    end_date: date | None = Query(default=None),
 ):
-    return service.list_loans(active_only=active_only, skip=skip, limit=limit)
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="start_date must not be after end_date"
+        )
+    return service.list_loans(
+        active_only=active_only,
+        skip=skip,
+        limit=limit,
+        status=status_filter,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
 
 @router.get("/{loan_id}", response_model=LoanRead)

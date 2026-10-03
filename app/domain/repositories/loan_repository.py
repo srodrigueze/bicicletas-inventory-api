@@ -18,6 +18,20 @@ class LoanRepository(ABC):
     def list_active(self, *, skip: int = 0, limit: int = 50) -> list[Loan]: ...
 
     @abstractmethod
+    def list_filtered(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 50,
+        status: str | None = None,
+        start_datetime: datetime | None = None,
+        end_datetime: datetime | None = None,
+    ) -> list[Loan]:
+        """status, when given, is one of 'activo' | 'incumplido' | 'cerrado' —
+        derived from the loan's details, not a stored column."""
+        ...
+
+    @abstractmethod
     def get_active_loan_by_client_id(self, client_id: int) -> Loan | None: ...
 
     @abstractmethod

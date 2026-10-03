@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy.exc import IntegrityError
 
+from app.core.timezone import day_bounds_utc
 from app.domain.entities.audit_log import AuditAction
 from app.domain.entities.bicycle import Bicycle
 from app.domain.entities.client import Client
@@ -73,11 +74,39 @@ class LoanService:
             raise ValueError(f"Bicycle {bicycle.code} is already on an active loan")
         return bicycle
 
-    def list_loans(self, *, active_only: bool = True, skip: int = 0, limit: int = 50) -> list[LoanRead]:
+    def list_loans(
+        self,
+        *,
+        active_only: bool = True,
+        skip: int = 0,
+        limit: int = 50,
+        status: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[LoanRead]:
+        # The "Activos" tab (HU-16) always means exactly this, regardless of
+        # whatever status/date filters are also present in the request —
+        # status/date are only meaningful for the "Todos" view.
         if active_only:
             loans = self.loan_repository.list_active(skip=skip, limit=limit)
-        else:
-            loans = self.loan_repository.list_all(skip=skip, limit=limit)
+            return [self._to_read(loan) for loan in loans]
+
+        # Same "a single date filters that one day" convention as audits (RNG-22).
+        if start_date and not end_date:
+            end_date = start_date
+        elif end_date and not start_date:
+            start_date = end_date
+
+        start_datetime = day_bounds_utc(start_date)[0] if start_date else None
+        end_datetime = day_bounds_utc(end_date)[1] if end_date else None
+
+        loans = self.loan_repository.list_filtered(
+            skip=skip,
+            limit=limit,
+            status=status,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+        )
         return [self._to_read(loan) for loan in loans]
 
     def get_loan(self, loan_id: int) -> LoanRead | None:
