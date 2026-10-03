@@ -301,3 +301,38 @@ def test_auditorias_filtradas_por_entidad(client, auth_headers):
     assert any(log["entity_id"] == bicycle["id"] for log in bicycle_logs)
     assert all(log["entity_name"] == "Loan" for log in loan_logs)
     assert any(log["entity_id"] == loan["id"] for log in loan_logs)
+
+
+# --- Case 20: audit logs expose the acting user's full name, not just the id
+def test_auditoria_expone_nombre_del_usuario(client, make_user, token_for):
+    headers = _admin_headers(make_user, token_for, document="1010144580")
+
+    client.post(
+        "/users/",
+        json={"full_name": "Alguien Nuevo", "document": "3000000100", "status": "activo", "role": "operador"},
+        headers=headers,
+    )
+
+    matches = _logs_for(client, headers, "User", "create")
+    assert any(log["user_full_name"] == "Admin Test" for log in matches)
+
+
+# --- Case 21: a Bicycle audit log's entity_reference is the bicycle's code,
+# not its internal numeric id ------------------------------------------------
+def test_auditoria_de_bicicleta_referencia_el_codigo_no_el_id(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="REF1")
+
+    matches = _logs_for(client, auth_headers, "Bicycle", "create")
+
+    assert any(log["entity_id"] == bicycle["id"] and log["entity_reference"] == "REF1" for log in matches)
+
+
+# --- Case 22: a Loan audit log's entity_reference falls back to the raw id
+# (loans have no separate user-facing code) ----------------------------------
+def test_auditoria_de_prestamo_referencia_el_id(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="REF2")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="4000000002")
+
+    matches = _logs_for(client, auth_headers, "Loan", "create")
+
+    assert any(log["entity_id"] == loan["id"] and log["entity_reference"] == str(loan["id"]) for log in matches)

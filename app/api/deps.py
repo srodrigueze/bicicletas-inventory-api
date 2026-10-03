@@ -87,8 +87,12 @@ def get_user_service(
     return UserService(user_repository, audit_repository)
 
 
-def get_audit_service(audit_repository: AuditRepositoryDep) -> AuditService:
-    return AuditService(audit_repository)
+def get_audit_service(
+    audit_repository: AuditRepositoryDep,
+    user_repository: UserRepositoryDep,
+    bicycle_repository: BicycleRepositoryDep,
+) -> AuditService:
+    return AuditService(audit_repository, user_repository, bicycle_repository)
 
 
 def get_report_service(
