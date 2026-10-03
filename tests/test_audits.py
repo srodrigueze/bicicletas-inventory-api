@@ -168,6 +168,21 @@ def test_devolucion_genera_auditoria_returned(client, auth_headers):
     assert any(log["entity_id"] == loan["id"] for log in matches)
 
 
+# --- Case 9b: marking a detail incumplido generates an INCUMPLIDO audit log
+# on Loan, and a DELETE audit log on the affected Bicycle --------------------
+def test_marcar_incumplido_genera_auditoria_en_loan_y_bicycle(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="A9B")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="3000000009b")
+    detail_id = loan["details"][0]["id"]
+
+    client.post(f"/loans/{loan['id']}/details/{detail_id}/mark-incumplido", headers=auth_headers)
+
+    loan_matches = _logs_for(client, auth_headers, "Loan", "incumplido")
+    bicycle_matches = _logs_for(client, auth_headers, "Bicycle", "delete")
+    assert any(log["entity_id"] == loan["id"] for log in loan_matches)
+    assert any(log["entity_id"] == bicycle["id"] for log in bicycle_matches)
+
+
 # --- Case 10: GET /audits/ works for an authenticated operador -------------
 def test_audits_accesible_para_operador(client, auth_headers):
     response = client.get("/audits/", headers=auth_headers)

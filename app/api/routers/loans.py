@@ -47,3 +47,11 @@ def add_bicycles(loan_id: int, data: LoanAddBicycles, current_user: CurrentUserD
         return service.add_bicycles(current_user, loan_id, data.bicycle_ids)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.post("/{loan_id}/details/{detail_id}/mark-incumplido", response_model=LoanRead)
+def mark_incumplido(loan_id: int, detail_id: int, current_user: CurrentUserDep, service: LoanServiceDep):
+    try:
+        return service.mark_incumplido(current_user, loan_id, detail_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

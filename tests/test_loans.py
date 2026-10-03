@@ -369,3 +369,90 @@ def test_conflicto_de_carrera_se_traduce_a_409(client, auth_headers, monkeypatch
     )
 
     assert response.status_code == 409
+
+
+# --- Case 19: marking a line incumplido changes its status, deactivates the
+# loan once it's the only line, and takes the bicycle out of JAC possession -
+def test_marcar_incumplido_cambia_estado_y_saca_bicicleta_de_posesion(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="L19")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="2000026")
+    detail_id = loan["details"][0]["id"]
+
+    response = client.post(f"/loans/{loan['id']}/details/{detail_id}/mark-incumplido", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["details"][0]["status"] == "incumplido"
+    assert body["is_active"] is False
+
+    bicycle_after = client.get(f"/bicycles/{bicycle['id']}", headers=auth_headers).json()
+    assert bicycle_after["en_posesion_jac"] is False
+    assert bicycle_after["is_available"] is False
+
+
+# --- Case 20: a line already returned cannot be marked incumplido ----------
+def test_marcar_incumplido_sobre_linea_entregada_es_rechazado(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="L20")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="2000027")
+    detail_id = loan["details"][0]["id"]
+    client.post(f"/loans/{loan['id']}/details/{detail_id}/return", headers=auth_headers)
+
+    response = client.post(f"/loans/{loan['id']}/details/{detail_id}/mark-incumplido", headers=auth_headers)
+
+    assert response.status_code == 409
+
+
+# --- Case 21: a line already incumplido cannot be marked incumplido again --
+def test_marcar_incumplido_dos_veces_es_rechazado(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="L21")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="2000028")
+    detail_id = loan["details"][0]["id"]
+    client.post(f"/loans/{loan['id']}/details/{detail_id}/mark-incumplido", headers=auth_headers)
+
+    response = client.post(f"/loans/{loan['id']}/details/{detail_id}/mark-incumplido", headers=auth_headers)
+
+    assert response.status_code == 409
+
+
+# --- Case 22: a late return of an incumplido line marks it returned and
+# restores the bicycle's possession ------------------------------------------
+def test_devolver_linea_incumplido_la_marca_entregada_y_restaura_posesion(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="L22")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="2000029")
+    detail_id = loan["details"][0]["id"]
+    client.post(f"/loans/{loan['id']}/details/{detail_id}/mark-incumplido", headers=auth_headers)
+
+    response = client.post(f"/loans/{loan['id']}/details/{detail_id}/return", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["details"][0]["status"] == "returned"
+    assert body["details"][0]["returned_at"] is not None
+
+    bicycle_after = client.get(f"/bicycles/{bicycle['id']}", headers=auth_headers).json()
+    assert bicycle_after["en_posesion_jac"] is True
+    assert bicycle_after["is_available"] is True
+
+
+# --- Case 23: a bicycle marked incumplido cannot be loaned again until it's
+# returned --------------------------------------------------------------------
+def test_bicicleta_incumplido_no_se_puede_prestar_de_nuevo(client, auth_headers):
+    bicycle = _create_bicycle(client, auth_headers, code="L23")
+    loan = _create_loan(client, auth_headers, [bicycle["id"]], document="2000030")
+    detail_id = loan["details"][0]["id"]
+    client.post(f"/loans/{loan['id']}/details/{detail_id}/mark-incumplido", headers=auth_headers)
+
+    response = client.post(
+        "/loans/",
+        json={"bicycle_ids": [bicycle["id"]], "client": _client_payload(document="2000031")},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 409
+
+
+# --- Case 24: the mark-incumplido endpoint requires authentication ---------
+def test_marcar_incumplido_sin_token_es_rechazado(client):
+    response = client.post("/loans/1/details/1/mark-incumplido")
+
+    assert response.status_code == 401

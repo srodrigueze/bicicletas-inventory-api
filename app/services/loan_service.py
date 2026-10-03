@@ -119,13 +119,32 @@ class LoanService:
         detail = self.loan_repository.get_detail_by_id(detail_id)
         if not detail or detail.loan_id != loan_id:
             raise ValueError(f"Loan detail {detail_id} does not belong to loan {loan_id}")
-        if detail.status != LoanDetailStatus.on_loan:
+        if detail.status not in (LoanDetailStatus.on_loan, LoanDetailStatus.incumplido):
             raise ValueError(f"Loan detail {detail_id} is already returned")
+
+        # A late return of a bicycle previously marked incumplido hands the
+        # JAC back its possession of it — reverse of what mark_incumplido did.
+        was_incumplido = detail.status == LoanDetailStatus.incumplido
 
         previous_snapshot = detail.model_dump(mode="json")
         detail.status = LoanDetailStatus.returned
         detail.returned_at = datetime.now(timezone.utc)
         updated_detail = self.loan_repository.update_detail(detail)
+
+        if was_incumplido:
+            bicycle = self.bicycle_repository.get_by_id(updated_detail.bicycle_id)
+            bicycle_previous_snapshot = bicycle.model_dump(mode="json")
+            bicycle.en_posesion_jac = True
+            updated_bicycle = self.bicycle_repository.update(bicycle)
+            record_audit(
+                self.audit_repository,
+                user=acting_user,
+                action=AuditAction.restore,
+                entity_name="Bicycle",
+                entity_id=updated_bicycle.id,
+                previous_values=bicycle_previous_snapshot,
+                new_values=updated_bicycle.model_dump(mode="json"),
+            )
 
         record_audit(
             self.audit_repository,
@@ -135,6 +154,48 @@ class LoanService:
             entity_id=loan_id,
             previous_values=previous_snapshot,
             new_values=updated_detail.model_dump(mode="json"),
+        )
+        return self._to_read(loan)
+
+    def mark_incumplido(self, acting_user: User, loan_id: int, detail_id: int) -> LoanRead:
+        loan = self.loan_repository.get_by_id(loan_id)
+        if not loan:
+            raise ValueError(f"Loan {loan_id} does not exist")
+        detail = self.loan_repository.get_detail_by_id(detail_id)
+        if not detail or detail.loan_id != loan_id:
+            raise ValueError(f"Loan detail {detail_id} does not belong to loan {loan_id}")
+        if detail.status != LoanDetailStatus.on_loan:
+            raise ValueError(f"Loan detail {detail_id} cannot be marked incumplido from its current status")
+
+        previous_snapshot = detail.model_dump(mode="json")
+        detail.status = LoanDetailStatus.incumplido
+        updated_detail = self.loan_repository.update_detail(detail)
+
+        # The JAC no longer has the bicycle in its possession — same
+        # consequence as a logical delete (RN-REQ002-07), triggered manually
+        # here instead of through the bicycle endpoint.
+        bicycle = self.bicycle_repository.get_by_id(updated_detail.bicycle_id)
+        bicycle_previous_snapshot = bicycle.model_dump(mode="json")
+        bicycle.en_posesion_jac = False
+        updated_bicycle = self.bicycle_repository.update(bicycle)
+
+        record_audit(
+            self.audit_repository,
+            user=acting_user,
+            action=AuditAction.incumplido,
+            entity_name="Loan",
+            entity_id=loan_id,
+            previous_values=previous_snapshot,
+            new_values=updated_detail.model_dump(mode="json"),
+        )
+        record_audit(
+            self.audit_repository,
+            user=acting_user,
+            action=AuditAction.delete,
+            entity_name="Bicycle",
+            entity_id=updated_bicycle.id,
+            previous_values=bicycle_previous_snapshot,
+            new_values=updated_bicycle.model_dump(mode="json"),
         )
         return self._to_read(loan)
 

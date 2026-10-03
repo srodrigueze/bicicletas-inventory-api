@@ -8,6 +8,7 @@ from sqlmodel import Field, SQLModel
 class LoanDetailStatus(str, Enum):
     on_loan = "on_loan"
     returned = "returned"
+    incumplido = "incumplido"
 
 
 class Loan(SQLModel, table=True):
