@@ -50,6 +50,7 @@ class BicycleService:
         condition: BicycleCondition | None = None,
         rueditas_asistencia: bool | None = None,
         tiene_pedales: bool | None = None,
+        numero_frenos: int | None = None,
         en_posesion_jac: bool | None = None,
     ) -> list[BicycleRead]:
         bicycles = self.bicycle_repository.list_all(
@@ -60,6 +61,7 @@ class BicycleService:
             condition=condition,
             rueditas_asistencia=rueditas_asistencia,
             tiene_pedales=tiene_pedales,
+            numero_frenos=numero_frenos,
             en_posesion_jac=en_posesion_jac,
         )
         return [self._to_read(bicycle) for bicycle in bicycles]

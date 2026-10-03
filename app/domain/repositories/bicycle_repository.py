@@ -21,6 +21,7 @@ class BicycleRepository(ABC):
         condition: BicycleCondition | None = None,
         rueditas_asistencia: bool | None = None,
         tiene_pedales: bool | None = None,
+        numero_frenos: int | None = None,
         en_posesion_jac: bool | None = None,
     ) -> list[Bicycle]: ...
 

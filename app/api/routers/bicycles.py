@@ -21,6 +21,7 @@ def list_bicycles(
     condition: BicycleCondition | None = Query(default=None),
     rueditas_asistencia: bool | None = Query(default=None),
     tiene_pedales: bool | None = Query(default=None),
+    numero_frenos: int | None = Query(default=None, ge=0, le=2),
     en_posesion_jac: bool | None = Query(default=None),
 ):
     return service.list_bicycles(
@@ -31,6 +32,7 @@ def list_bicycles(
         condition=condition,
         rueditas_asistencia=rueditas_asistencia,
         tiene_pedales=tiene_pedales,
+        numero_frenos=numero_frenos,
         en_posesion_jac=en_posesion_jac,
     )
 

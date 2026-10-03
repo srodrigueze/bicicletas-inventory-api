@@ -25,6 +25,7 @@ class SqlBicycleRepository(BicycleRepository):
         condition: BicycleCondition | None = None,
         rueditas_asistencia: bool | None = None,
         tiene_pedales: bool | None = None,
+        numero_frenos: int | None = None,
         en_posesion_jac: bool | None = None,
     ) -> list[Bicycle]:
         statement = select(Bicycle)
@@ -38,6 +39,8 @@ class SqlBicycleRepository(BicycleRepository):
             statement = statement.where(Bicycle.rueditas_asistencia == rueditas_asistencia)
         if tiene_pedales is not None:
             statement = statement.where(Bicycle.tiene_pedales == tiene_pedales)
+        if numero_frenos is not None:
+            statement = statement.where(Bicycle.numero_frenos == numero_frenos)
         if en_posesion_jac is not None:
             statement = statement.where(Bicycle.en_posesion_jac == en_posesion_jac)
         statement = statement.offset(skip).limit(limit)
