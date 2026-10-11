@@ -3,8 +3,14 @@ from sqlalchemy import text
 
 from app.api.deps import SessionDep
 from app.api.routers import audits, auth, bicycles, clients, loans, reports, users
+from app.core.config import settings
 
-app = FastAPI(title="Bicycle Loan Inventory API")
+app = FastAPI(
+    title="Bicycle Loan Inventory API",
+    docs_url="/docs" if settings.enable_api_docs else None,
+    redoc_url="/redoc" if settings.enable_api_docs else None,
+    openapi_url="/openapi.json" if settings.enable_api_docs else None,
+)
 
 app.include_router(bicycles.router)
 app.include_router(loans.router)
