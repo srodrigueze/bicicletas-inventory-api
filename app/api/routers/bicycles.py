@@ -10,6 +10,19 @@ _ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 
 
+def _detect_image_type(content: bytes) -> tuple[str, str] | None:
+    """Identifies the real format from the file's magic bytes, since the
+    Content-Type header and the filename are both chosen by the client.
+    Returns (content_type, extension), or None if it isn't an allowed image."""
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg", ".jpg"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png", ".png"
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "image/webp", ".webp"
+    return None
+
+
 @router.get("/", response_model=list[BicycleRead])
 def list_bicycles(
     current_user: CurrentUserDep,
@@ -92,13 +105,23 @@ def upload_bicycle_image(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Only image/jpeg, image/png or image/webp files are allowed",
         )
-    content = file.file.read()
+    # One byte past the limit is enough to know it's too big, without
+    # loading an arbitrarily large body into memory.
+    content = file.file.read(_MAX_IMAGE_SIZE_BYTES + 1)
     if len(content) > _MAX_IMAGE_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="Image must be at most 5MB",
         )
-    bicycle = service.upload_image(current_user, bicycle_id, file.filename, content, file.content_type)
+    detected = _detect_image_type(content)
+    if detected is None:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="The file content is not a valid jpeg, png or webp image",
+        )
+    content_type, extension = detected
+    # Stored under a name built from the detected format, never the client's filename.
+    bicycle = service.upload_image(current_user, bicycle_id, f"imagen{extension}", content, content_type)
     if not bicycle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bicycle not found")
     return bicycle
