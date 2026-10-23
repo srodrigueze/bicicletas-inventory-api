@@ -15,6 +15,8 @@ class AuditAction(str, Enum):
     returned = "returned"
     add_bicycle = "add_bicycle"
     incumplido = "incumplido"
+    password_change = "password_change"
+    password_reset = "password_reset"
 
 
 class AuditLog(SQLModel, table=True):

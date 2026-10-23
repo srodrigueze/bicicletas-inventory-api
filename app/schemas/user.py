@@ -2,6 +2,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.security import BCRYPT_MAX_PASSWORD_BYTES
 from app.domain.entities.user import UserRole, UserStatus
 
 DOCUMENT_PATTERN = re.compile(r"^\d{4,}$")
@@ -35,6 +36,7 @@ class UserRead(BaseModel):
     role: UserRole
     status: UserStatus
     is_superadmin: bool
+    must_change_password: bool
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,11 +49,19 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    must_change_password: bool
 
 
 class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=6)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password_length(cls, value: str) -> str:
+        if len(value.encode()) > BCRYPT_MAX_PASSWORD_BYTES:
+            raise ValueError(f"new_password must be at most {BCRYPT_MAX_PASSWORD_BYTES} bytes long")
+        return value
 
 
 class MessageResponse(BaseModel):

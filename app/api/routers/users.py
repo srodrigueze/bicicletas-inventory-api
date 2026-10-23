@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.deps import AdminUserDep, CurrentUserDep, UserServiceDep
+from app.api.deps import AdminUserDep, AuthenticatedUserDep, UserServiceDep
 from app.schemas.user import MessageResponse, PasswordChangeRequest, UserCreate, UserRead, UserUpdate
 from app.services.user_service import ForbiddenActionError
 
@@ -8,7 +8,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/me/change-password", response_model=MessageResponse)
-def change_my_password(data: PasswordChangeRequest, current_user: CurrentUserDep, service: UserServiceDep):
+def change_my_password(data: PasswordChangeRequest, current_user: AuthenticatedUserDep, service: UserServiceDep):
     try:
         service.change_password(current_user, data.current_password, data.new_password)
     except ValueError as exc:
@@ -17,7 +17,7 @@ def change_my_password(data: PasswordChangeRequest, current_user: CurrentUserDep
 
 
 @router.get("/me", response_model=UserRead)
-def get_my_user(current_user: CurrentUserDep, service: UserServiceDep):
+def get_my_user(current_user: AuthenticatedUserDep, service: UserServiceDep):
     return service.get_self(current_user)
 
 

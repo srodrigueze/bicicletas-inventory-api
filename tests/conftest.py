@@ -110,6 +110,7 @@ def make_user(db_session):
         role: "UserRole",
         status: "UserStatus" = UserStatus.ACTIVO,
         is_superadmin: bool = False,
+        must_change_password: bool = False,
     ) -> "User":
         user = User(
             full_name=full_name,
@@ -118,6 +119,9 @@ def make_user(db_session):
             role=role,
             status=status,
             is_superadmin=is_superadmin,
+            # Off by default so tests can use the account right away; the
+            # tests of the forced password change opt in explicitly.
+            must_change_password=must_change_password,
         )
         return repository.create(user)
 

@@ -1,4 +1,15 @@
-from app.core.security import create_access_token, derive_initial_password, hash_password, verify_password
+import math
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+
+from app.core.config import settings
+from app.core.security import (
+    burn_password_check,
+    create_access_token,
+    derive_initial_password,
+    hash_password,
+    verify_password,
+)
 from app.domain.entities.audit_log import AuditAction
 from app.domain.entities.user import User, UserRole, UserStatus
 from app.domain.repositories.audit_repository import AuditRepository
@@ -13,6 +24,27 @@ class ForbiddenActionError(Exception):
     translates this into a 403 response."""
 
 
+class AccountLockedError(Exception):
+    """Raised when a login is refused because the account hit the failed
+    attempts limit. The router translates this into a 429 response."""
+
+    def __init__(self, locked_until: datetime | None):
+        self.locked_until = locked_until
+
+    @property
+    def retry_after_seconds(self) -> int:
+        if self.locked_until is None:
+            return settings.login_lock_minutes * 60
+        remaining = (self.locked_until - datetime.now(timezone.utc)).total_seconds()
+        return max(1, math.ceil(remaining))
+
+
+@dataclass(frozen=True)
+class LoginResult:
+    access_token: str
+    must_change_password: bool
+
+
 class UserService:
     def __init__(self, user_repository: UserRepository, audit_repository: AuditRepository):
         self.user_repository = user_repository
@@ -21,6 +53,9 @@ class UserService:
     def _audit_snapshot(self, user: User) -> dict:
         data = user.model_dump(mode="json")
         data.pop("hashed_password", None)
+        # Throttling bookkeeping, not business data: would only add noise to the audit trail.
+        data.pop("failed_login_attempts", None)
+        data.pop("locked_until", None)
         return data
 
     def _to_read(self, user: User) -> UserRead:
@@ -32,6 +67,7 @@ class UserService:
             role=user.role,
             status=user.status,
             is_superadmin=user.is_superadmin,
+            must_change_password=user.must_change_password,
         )
 
     def list_users(self, skip: int = 0, limit: int = 50) -> list[UserRead]:
@@ -56,6 +92,7 @@ class UserService:
             role=data.role,
             status=data.status,
             is_superadmin=False,  # RN-REQ001-13: never granted through this endpoint
+            must_change_password=True,
         )
 
         created = self.user_repository.create(user)
@@ -116,7 +153,21 @@ class UserService:
         self._check_management_permission(acting_user, target)
         derived = derive_initial_password(target.document)
         target.hashed_password = hash_password(derived)
+        target.must_change_password = True
+        target.token_version += 1
+        # A reset is also how an administrator unlocks a locked-out account.
+        target.failed_login_attempts = 0
+        target.locked_until = None
         updated = self.user_repository.update(target)
+        record_audit(
+            self.audit_repository,
+            user=acting_user,
+            action=AuditAction.password_reset,
+            entity_name="User",
+            entity_id=updated.id,
+            previous_values=None,
+            new_values=None,
+        )
         return self._to_read(updated)
 
 
@@ -128,15 +179,44 @@ class UserService:
             raise ValueError("New password must be at least 6 characters long")
 
         current_user.hashed_password = hash_password(new_password)
+        current_user.must_change_password = False
+        current_user.token_version += 1
         self.user_repository.update(current_user)
+        record_audit(
+            self.audit_repository,
+            user=current_user,
+            action=AuditAction.password_change,
+            entity_name="User",
+            entity_id=current_user.id,
+            previous_values=None,
+            new_values=None,
+        )
 
 
-    def login(self, document: str, password: str) -> str | None:
+    def login(self, document: str, password: str) -> LoginResult | None:
         user = self.user_repository.get_by_document(document)
         if not user or user.status != UserStatus.ACTIVO:
+            burn_password_check(password)
             return None
-        
+
+        # The attempt is counted *before* checking the password, so concurrent
+        # guesses are all accounted for and a locked account never even gets
+        # its password verified.
+        now = datetime.now(timezone.utc)
+        attempts, locked_until = self.user_repository.register_login_attempt(
+            user.id,
+            max_attempts=settings.login_max_attempts,
+            lock_until=now + timedelta(minutes=settings.login_lock_minutes),
+            now=now,
+        )
+        if attempts > settings.login_max_attempts:
+            raise AccountLockedError(locked_until)
+
         if not verify_password(password, user.hashed_password):
             return None
-        
-        return create_access_token(subject=str(user.id))
+
+        self.user_repository.reset_login_attempts(user.id)
+        return LoginResult(
+            access_token=create_access_token(subject=str(user.id), token_version=user.token_version),
+            must_change_password=user.must_change_password,
+        )
