@@ -1,34 +1,34 @@
 # --- API ---
-fastapi>=0.115
-uvicorn[standard]>=0.32
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
 
 # --- ORM + validación (SQLModel = SQLAlchemy + Pydantic) ---
-sqlmodel>=0.0.22
+sqlmodel==0.0.39
 
 # --- Migraciones ---
-alembic>=1.14
+alembic==1.18.5
 
 # --- Driver de Postgres (psycopg 3) ---
-psycopg[binary]>=3.2
+psycopg[binary]==3.3.4
 
 # --- Configuración por variables de entorno ---
-pydantic-settings>=2.6
-python-dotenv>=1.0
+pydantic-settings==2.14.2
+python-dotenv==1.2.2
 
 # --- Requerido si usas formularios (form-data) o EmailStr en tus modelos ---
-python-multipart>=0.0.12
-email-validator>=2.2
+python-multipart==0.0.32
+email-validator==2.3.0
 
 # --- Auth: hash de passwords y JWT ---
-bcrypt>=4.2
-pyjwt>=2.9
+bcrypt==5.0.0
+pyjwt==2.13.0
 
 # --- Pruebas ---
-pytest>=8.3
-httpx>=0.27
+pytest==9.1.1
+httpx==0.28.1
 
 # --- Reportes en PDF ---
-reportlab>=4.2
+reportlab==5.0.1
 
 # --- Almacenamiento de imagenes (Google Cloud Storage) ---
-google-cloud-storage>=2.18
+google-cloud-storage==3.15.0
