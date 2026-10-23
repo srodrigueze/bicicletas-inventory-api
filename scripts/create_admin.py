@@ -8,8 +8,8 @@ already exists.
 Usage:
     python -m scripts.create_admin <full_name> <document>
 
-The initial password is derived automatically from the document (last 4
-digits, RNG-06) — it is not prompted.
+The initial password is set automatically (RNG-06) — it is not prompted, nor
+printed. The account must change it at its first login.
 """
 
 import sys
@@ -58,10 +58,7 @@ def main() -> None:
             is_superadmin=True,
         )
         created = repository.create(user)
-        print(
-            f"Created superadministrator '{created.full_name}' "
-            f"(id={created.id}, document={created.document}, initial password={initial_password})"
-        )
+        print(f"Created superadministrator '{created.full_name}' (id={created.id}, document={created.document})")
 
 
 if __name__ == "__main__":

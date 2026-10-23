@@ -7,7 +7,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Cloud Run sets $PORT at runtime; 8080 is the default it uses.
+# The app doesn't need root: run it as an unprivileged user.
+RUN useradd --system --no-create-home appuser
+USER appuser
+
+# The hosting platform sets $PORT at runtime; 8080 is the usual default.
 ENV PORT=8080
 EXPOSE 8080
 

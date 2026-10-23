@@ -10,7 +10,7 @@ varias bicis durante el día, sin costo de uso ni de infraestructura.
 - **Backend**: FastAPI (Python 3.12) + SQLModel (ORM) + Alembic (migraciones)
 - **Base de datos**: PostgreSQL en [Neon](https://neon.tech) (tier gratuito)
 - **Frontend**: Next.js / React (pendiente), desplegado en Vercel
-- **Hosting backend**: Google Cloud Run (contenedor, escala a cero) — pendiente
+- **Hosting backend**: contenedor Docker (ver [Deployment.md](Deployment.md)) — pendiente
 
 ## Arquitectura
 
@@ -82,13 +82,30 @@ persistencia sin reescribir la lógica de negocio.
 
 ## Autenticación
 
-`POST /auth/login` recibe `document`/`password`. La contraseña inicial de todo usuario
-es derivada (últimos 4 dígitos del documento); un usuario puede cambiarla después vía
-`POST /users/me/change-password`. Login valida contra el hash guardado (`bcrypt`),
+`POST /auth/login` recibe `document`/`password`. Valida contra el hash guardado (`bcrypt`),
 rechaza usuarios `inactivo` con el mismo mensaje genérico que credenciales inválidas, y
 devuelve un JWT (`pyjwt`, `HS256`, expira en `JWT_EXPIRE_MINUTES` — 6h por defecto,
 RNG-07). Requiere `JWT_SECRET_KEY` en `.env` (generar con
 `python -c "import secrets; print(secrets.token_hex(32))"`, nunca commitear).
+
+Cada administrador le comunica al usuario nuevo cómo ingresar por primera vez. Toda cuenta
+nueva (o reseteada con `POST /users/{id}/reset-password`) queda con
+`must_change_password: true` y no puede usar ningún endpoint —responden `403 Password
+change required`— salvo `POST /users/me/change-password` y `GET /users/me`. El flag viene
+en la respuesta del login para que el frontend redirija al cambio de contraseña.
+
+**Revocación de tokens:** cambiar o resetear una contraseña invalida todos los tokens
+emitidos antes (campo `token_version`), así que tras `change-password` hay que volver a
+iniciar sesión. Ambas acciones quedan en la auditoría (`password_change`,
+`password_reset`). Las contraseñas admiten hasta 72 bytes (límite de bcrypt).
+
+**Bloqueo por intentos fallidos:** tras `LOGIN_MAX_ATTEMPTS` (5) intentos fallidos
+consecutivos la cuenta rechaza el login con `429` y cabecera `Retry-After` durante
+`LOGIN_LOCK_MINUTES` (15), incluso con la contraseña correcta. Un login exitoso reinicia
+el contador, y `POST /users/{id}/reset-password` también desbloquea la cuenta. El conteo
+es atómico en la base de datos, así que peticiones paralelas no lo evaden. Esto protege
+cada cuenta, no la IP: para frenar un barrido entre muchas cuentas conviene además un
+límite en el borde (WAF del proveedor).
 
 No hay auto-registro a propósito (RNG-08). Solo existe un único punto de entrada sin
 autenticación previa: `scripts/create_admin.py`, que crea **exclusivamente** al
@@ -105,14 +122,31 @@ por JWT y restringido a usuarios con rol `administrador` — ver
 
 Todos los endpoints de `bicycles`, `loans`, `clients`, `audits` y `reports` requieren
 JWT (`CurrentUserDep`/`AdminUserDep` en `app/api/deps.py`); el único endpoint público
-sin autenticación es el health check (`GET /`, ver abajo).
+sin autenticación es el health check (`GET /`, ver abajo). Todas las respuestas llevan
+cabeceras de seguridad (`nosniff`, `X-Frame-Options`, `HSTS`, `no-store`).
+
+## Documentación de la API (Swagger)
+
+`/docs`, `/redoc` y `/openapi.json` están **deshabilitados por defecto** (RNG-01). Para
+desarrollo local agrega `ENABLE_API_DOCS=true` a tu `.env`; en producción no definas esa
+variable.
+
+## Almacenamiento de imágenes
+
+Las fotos de las bicicletas se guardan detrás de la interfaz `ImageStorageRepository`
+(`app/domain/repositories/image_storage_repository.py`). El proveedor se elige con
+`STORAGE_BACKEND` (por ahora solo `gcs`). Para soportar otro proveedor, implementa esa
+interfaz en `app/infrastructure/repositories/` y agrega su rama en
+`get_image_storage_repository()` (`app/api/deps.py`). Solo se aceptan JPEG, PNG y WebP de
+hasta 5 MB; el formato se verifica por el contenido del archivo, no por lo que declare el
+cliente.
 
 ## Health check
 
 `GET /` no requiere autenticación y confirma dos cosas: que el proceso está arriba y
 que la conexión a la base de datos responde (`SELECT 1`). Devuelve `200
 {"status": "ok"}` si todo está bien, o `503` si la base de datos no responde. Pensado
-para monitores de uptime externos y para el health check/liveness probe de Cloud Run.
+para monitores de uptime externos y para el health check/liveness probe de la plataforma de hosting.
 
 ## Configuración local
 
@@ -132,12 +166,14 @@ para monitores de uptime externos y para el health check/liveness probe de Cloud
    ```
    DATABASE_URL=postgresql+psycopg://usuario:password@ep-xxxx-pooler.<region>.aws.neon.tech/dbname?sslmode=require
    DATABASE_URL_DIRECT=postgresql+psycopg://usuario:password@ep-xxxx.<region>.aws.neon.tech/dbname?sslmode=require
+   JWT_SECRET_KEY=<ver sección Autenticación>
+   ENABLE_API_DOCS=true
    ```
 5. Levanta el servidor local:
    ```bash
    uvicorn app.main:app --reload
    ```
-6. Prueba la API (Swagger UI, incluido con FastAPI) en `http://localhost:8000/docs`.
+6. Prueba la API (Swagger UI, requiere `ENABLE_API_DOCS=true`) en `http://localhost:8000/docs`.
 
 ## Migraciones de base de datos
 
@@ -179,95 +215,10 @@ Cada requisito nuevo que se implemente (ver la bóveda de Obsidian del proyecto,
 carpeta `Desarrollo/`) debe agregar su propio archivo `tests/test_<módulo>.py`, para
 que la suite completa sirva como regresión antes de cada despliegue.
 
-## Despliegue a GCP (Cloud Run)
+## Despliegue
 
-Infraestructura ya existente (ver DEV-007 en la bóveda): proyecto `jac-bicicletas`,
-buckets de Cloud Storage `jac-bicicletas-{dev,test,prod}`, y la cuenta de servicio
-`bicicletas-api-prod@jac-bicicletas.iam.gserviceaccount.com` con permisos solo sobre el
-bucket `prod`. El despliegue usa el `Dockerfile` de la raíz del repo (sin buildpacks).
-
-### 1. Crear la rama `prod` en Neon
-
-Desde la consola de Neon (no es un recurso de GCP): crea una rama nueva llamada `prod` en
-el mismo proyecto, independiente de `dev`/`test`. Copia sus dos cadenas de conexión
-(pooler y directa).
-
-### 2. Generar un `JWT_SECRET_KEY` propio para producción
-
-Nunca reutilices el de `dev`/`test`:
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
-
-### 3. Guardar los secretos en Secret Manager
-
-```bash
-gcloud services enable secretmanager.googleapis.com --project=jac-bicicletas
-
-echo -n "<DATABASE_URL de prod>" | gcloud secrets create database-url-prod --data-file=- --project=jac-bicicletas
-echo -n "<DATABASE_URL_DIRECT de prod>" | gcloud secrets create database-url-direct-prod --data-file=- --project=jac-bicicletas
-echo -n "<JWT_SECRET_KEY generado en el paso 2>" | gcloud secrets create jwt-secret-key-prod --data-file=- --project=jac-bicicletas
-```
-
-Dale acceso de lectura a la cuenta de servicio que usará Cloud Run:
-```bash
-for secret in database-url-prod database-url-direct-prod jwt-secret-key-prod; do
-  gcloud secrets add-iam-policy-binding $secret \
-    --member="serviceAccount:bicicletas-api-prod@jac-bicicletas.iam.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor" \
-    --project=jac-bicicletas
-done
-```
-
-### 4. Aplicar las migraciones contra `prod` (una sola vez, antes del primer despliegue)
-
-Desde tu máquina, con un `.env` apuntando temporalmente a las cadenas de conexión de
-`prod` (no las subas a ningún repo):
-```bash
-alembic upgrade head
-```
-
-### 5. Crear el superadministrador semilla en `prod`
-
-Con el mismo `.env` temporal apuntando a `prod`:
-```bash
-python -m scripts.create_admin "Nombre Completo" <documento>
-```
-
-### 6. Desplegar
-
-```bash
-gcloud run deploy bicicletas-inventory-api \
-  --source . \
-  --project=jac-bicicletas \
-  --region=us-central1 \
-  --service-account=bicicletas-api-prod@jac-bicicletas.iam.gserviceaccount.com \
-  --allow-unauthenticated \
-  --set-secrets="DATABASE_URL=database-url-prod:latest,DATABASE_URL_DIRECT=database-url-direct-prod:latest,JWT_SECRET_KEY=jwt-secret-key-prod:latest" \
-  --set-env-vars="GCS_BUCKET_NAME=jac-bicicletas-prod,IMAGE_BASE_URL=https://storage.googleapis.com/jac-bicicletas-prod/"
-```
-
-`--allow-unauthenticated` es correcto aquí: Cloud Run queda abierto a internet, pero cada
-endpoint de la API sigue exigiendo su propio JWT (excepto `GET /`, el health check). Cloud
-Run construye la imagen con el `Dockerfile`, la sube a Artifact Registry y devuelve una URL
-pública (`https://bicicletas-inventory-api-xxxxx-uc.a.run.app`).
-
-### 7. Verificar
-
-```bash
-curl https://<url-del-servicio>/
-# {"status": "ok"}
-```
-
-Si da `503`, la base de datos no respondió — revisa que el secreto `DATABASE_URL` sea el
-correcto y que la rama `prod` de Neon esté activa.
-
-### Despliegues posteriores
-
-Cada vez que haya una migración nueva (columna, tabla, enum), repite el paso 4 contra
-`prod` **antes** de re-desplegar el código que depende de ese cambio — Cloud Run no
-corre migraciones automáticamente. Para el código en sí, basta con repetir el paso 6: crea
-una revisión nueva y la cambia de tráfico automáticamente.
+Los pasos de despliegue (infraestructura, secretos, migraciones en producción) están en
+[Deployment.md](Deployment.md).
 
 ## Contribuir
 

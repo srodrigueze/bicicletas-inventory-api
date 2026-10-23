@@ -30,7 +30,8 @@ class SqlBicycleRepository(BicycleRepository):
     ) -> list[Bicycle]:
         statement = select(Bicycle)
         if code:
-            statement = statement.where(Bicycle.code.ilike(f"%{code}%"))
+            # autoescape: a literal "%" or "_" typed by the user must not act as a wildcard
+            statement = statement.where(Bicycle.code.icontains(code, autoescape=True))
         if size is not None:
             statement = statement.where(Bicycle.size == size)
         if condition is not None:
